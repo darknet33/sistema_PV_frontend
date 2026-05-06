@@ -10,9 +10,16 @@ export interface SetupAdminRequest {
   apellidos: string
 }
 
+export interface ModuloAsignado {
+  id: number
+  nombre: string
+}
+
 export interface LoginResponse {
   access_token: string
   token_type: string
+  usuario: Usuario
+  modulos: ModuloAsignado[]
 }
 
 export interface CheckUsersResponse {

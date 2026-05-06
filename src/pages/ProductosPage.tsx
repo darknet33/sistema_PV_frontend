@@ -1,30 +1,50 @@
-import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag } from 'antd'
+import { useEffect, useState, useMemo } from 'react'
+import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
 import { getProductos, createProducto, updateProducto, deleteProducto } from '../services/productoService'
+import categoriaService, { Categoria } from '../services/categoriaService'
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null)
   const [form] = Form.useForm()
 
+  const [catModalVisible, setCatModalVisible] = useState(false)
+  const [catForm] = Form.useForm()
+  const [editingCategoria, setEditingCategoria] = useState<Categoria | null>(null)
+
   const loadProductos = async () => {
     setLoading(true)
     try {
       const data = await getProductos()
-      setProductos(data)
+      setProductos(Array.isArray(data) ? data : [])
     } catch (error) {
       message.error('Error al cargar productos')
+      setProductos([])
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { loadProductos() }, [])
+  const loadCategorias = async () => {
+    try {
+      const data = await categoriaService.getAll()
+      setCategorias(Array.isArray(data) ? data : [])
+    } catch {
+      message.error('Error al cargar categorías')
+      setCategorias([])
+    }
+  }
+
+  useEffect(() => {
+    loadProductos()
+    loadCategorias()
+  }, [])
 
   const handleSave = async (values: ProductoCreate) => {
     try {
@@ -53,25 +73,91 @@ export default function ProductosPage() {
     }
   }
 
-  const columns: ColumnsType<Producto> = [
-    { title: 'Código', dataIndex: 'codigo', key: 'codigo' },
-    { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
-    { title: 'Marca', dataIndex: 'marca', key: 'marca' },
-    { title: 'Precio', dataIndex: 'precio', key: 'precio', render: (val: number) => `S/. ${val.toFixed(2)}` },
-    { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual' },
-    { title: 'Stock Mínimo', dataIndex: 'stock_minimo', key: 'stock_minimo' },
-    { title: 'Estado', dataIndex: 'activo', key: 'activo', render: (activo: boolean) => <Tag color={activo ? 'green' : 'red'}>{activo ? 'Activo' : 'Inactivo'}</Tag> },
+  const handleOpenCatModal = (record?: Categoria) => {
+    if (record) {
+      setEditingCategoria(record)
+      catForm.setFieldsValue(record)
+    } else {
+      setEditingCategoria(null)
+      catForm.resetFields()
+    }
+    setCatModalVisible(true)
+  }
+
+  const handleSaveCategoria = async () => {
+    try {
+      const values = await catForm.validateFields()
+      if (editingCategoria) {
+        await categoriaService.update(editingCategoria.id, values)
+        message.success('Categoría actualizada')
+      } else {
+        await categoriaService.create(values)
+        message.success('Categoría creada')
+      }
+      setCatModalVisible(false)
+      loadCategorias()
+    } catch {
+      message.error('Error al guardar categoría')
+    }
+  }
+
+  const handleDeleteCategoria = async (id: number) => {
+    try {
+      await categoriaService.delete(id)
+      message.success('Categoría eliminada')
+      loadCategorias()
+    } catch {
+      message.error('Error al eliminar categoría')
+    }
+  }
+
+  const catColumns: ColumnsType<Categoria> = useMemo(() => [
+    { title: 'ID', dataIndex: 'id', width: 60 },
+    { title: 'Nombre', dataIndex: 'nombre' },
     {
-      title: 'Acciones', key: 'acciones', render: (_, record) => (
+      title: 'Acciones',
+      width: 140,
+      render: (_: unknown, record: Categoria) => (
         <Space>
-          <Button icon={<EditOutlined />} size="small" onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar producto?" onConfirm={() => handleDelete(record.id)}>
-            <Button icon={<DeleteOutlined />} size="small" danger />
+          <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenCatModal(record)} />
+          <Popconfirm title="¿Eliminar categoría?" onConfirm={() => handleDeleteCategoria(record.id)}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
-      )
-    }
-  ]
+      ),
+    },
+  ], [categorias])
+
+  const columns: ColumnsType<Producto> = useMemo(() => {
+    const catMap = new Map<number, string>()
+    categorias.forEach((c) => catMap.set(c.id, c.nombre))
+
+    return [
+      { title: 'Código', dataIndex: 'codigo', key: 'codigo' },
+      { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
+      { title: 'Marca', dataIndex: 'marca', key: 'marca' },
+      { title: 'Categoría', dataIndex: 'categoria_id', key: 'categoria_id', render: (id: number) => catMap.get(id) || `#${id}` },
+      { title: 'Precio', dataIndex: 'precio', key: 'precio', render: (val: number) => `S/. ${(val || 0).toFixed(2)}` },
+      { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', render: (val: number) => val ?? 0 },
+      { title: 'Stock Mínimo', dataIndex: 'stock_minimo', key: 'stock_minimo', render: (val: number) => val ?? 0 },
+      { title: 'Estado', dataIndex: 'activo', key: 'activo', render: (activo: boolean) => <Tag color={activo ? 'green' : 'red'}>{activo ? 'Activo' : 'Inactivo'}</Tag> },
+      {
+        title: 'Acciones', key: 'acciones', render: (_, record) => (
+          <Space>
+            <Button icon={<EditOutlined />} size="small" onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setModalVisible(true) }} />
+            <Popconfirm title="¿Eliminar producto?" onConfirm={() => handleDelete(record.id)}>
+              <Button icon={<DeleteOutlined />} size="small" danger />
+            </Popconfirm>
+          </Space>
+        )
+      }
+    ]
+  }, [categorias])
+
+  const catSelectOptions = useMemo(() =>
+    categorias.map((c) => ({ value: c.id, label: c.nombre })),
+    [categorias]
+  )
 
   return (
     <div>
@@ -81,7 +167,9 @@ export default function ProductosPage() {
           Nuevo Producto
         </Button>
       </div>
-      <Table columns={columns} dataSource={productos} loading={loading} rowKey="id" pagination={{ pageSize: 10 }} />
+      <Spin spinning={loading}>
+        <Table columns={columns} dataSource={productos} rowKey="id" pagination={{ pageSize: 10 }} />
+      </Spin>
       <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleSave}>
           <Form.Item name="codigo" label="Código" rules={[{ required: true }]}>
@@ -93,8 +181,21 @@ export default function ProductosPage() {
           <Form.Item name="marca" label="Marca" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="categoria_id" label="Categoría ID" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
+          <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]}>
+            <Select
+              placeholder="Seleccione una categoría"
+              options={catSelectOptions}
+              dropdownRender={(menu) => (
+                <>
+                  {menu}
+                  <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => handleOpenCatModal()}>
+                      Gestionar categorías
+                    </Button>
+                  </div>
+                </>
+              )}
+            />
           </Form.Item>
           <Form.Item name="precio" label="Precio" rules={[{ required: true }]}>
             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
@@ -106,6 +207,26 @@ export default function ProductosPage() {
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={editingCategoria ? 'Editar Categoría' : 'Nueva Categoría'}
+        open={catModalVisible}
+        onCancel={() => setCatModalVisible(false)}
+        onOk={handleSaveCategoria}
+      >
+        <Form form={catForm} layout="vertical" style={{ marginBottom: 16 }}>
+          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
+            <Input placeholder="Nombre de la categoría" />
+          </Form.Item>
+        </Form>
+        <Table
+          columns={catColumns}
+          dataSource={categorias}
+          rowKey="id"
+          size="small"
+          pagination={{ pageSize: 5 }}
+        />
       </Modal>
     </div>
   )

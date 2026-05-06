@@ -1,0 +1,31 @@
+import api from './api'
+
+export interface Categoria {
+  id: number
+  nombre: string
+}
+
+export interface CategoriaCreate {
+  nombre: string
+}
+
+const categoriaService = {
+  getAll: async () => {
+    const { data } = await api.get<Categoria[]>('/categorias/')
+    return data
+  },
+  create: async (categoria: CategoriaCreate) => {
+    const { data } = await api.post<Categoria>('/categorias/', categoria)
+    return data
+  },
+  update: async (id: number, categoria: CategoriaCreate) => {
+    const { data } = await api.put<Categoria>(`/categorias/${id}`, categoria)
+    return data
+  },
+  delete: async (id: number) => {
+    const { data } = await api.delete(`/categorias/${id}`)
+    return data
+  },
+}
+
+export default categoriaService
