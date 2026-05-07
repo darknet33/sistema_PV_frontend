@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useEffect, useState, useMemo, useRef } from 'react'
+import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch, Upload } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
-import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo } from '../services/productoService'
+import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo, exportProductos, importProductos, deleteProductosBatch, deleteAllProductos } from '../services/productoService'
 import categoriaService, { Categoria } from '../services/categoriaService'
 
 export default function ProductosPage() {
@@ -20,6 +20,9 @@ export default function ProductosPage() {
 
   const [filterCategoria, setFilterCategoria] = useState<number | undefined>(undefined)
   const [searchText, setSearchText] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filteredProductos = useMemo(() => {
     return productos.filter((p) => {
@@ -93,6 +96,64 @@ export default function ProductosPage() {
     }
   }
 
+  const handleExport = async () => {
+    try {
+      const blob = await exportProductos()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'productos.xlsx'
+      link.click()
+      URL.revokeObjectURL(url)
+      message.success('Archivo exportado correctamente')
+    } catch {
+      message.error('Error al exportar productos')
+    }
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    try {
+      const result = await importProductos(file)
+      loadProductos()
+      if (result.errores.length > 0) {
+        message.warning(`Importacion completada con errores: ${result.creados} creados, ${result.actualizados} actualizados, ${result.errores.length} errores`)
+        console.error('Errores de importacion:', result.errores)
+      } else {
+        message.success(`Importacion exitosa: ${result.creados} creados, ${result.actualizados} actualizados`)
+      }
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al importar productos')
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedRowKeys.length === 0) return
+    try {
+      const result = await deleteProductosBatch(selectedRowKeys as number[])
+      setSelectedRowKeys([])
+      message.success(result.message)
+      loadProductos()
+    } catch (error) {
+      message.error('Error al eliminar productos seleccionados')
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    try {
+      const result = await deleteAllProductos()
+      message.success(result.message)
+      loadProductos()
+    } catch (error) {
+      message.error('Error al eliminar todos los productos')
+    }
+  }
+
   const handleOpenCatModal = (record?: Categoria) => {
     if (record) {
       setEditingCategoria(record)
@@ -157,6 +218,7 @@ export default function ProductosPage() {
       { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
       { title: 'Marca', dataIndex: 'marca', key: 'marca' },
       { title: 'Categoría', dataIndex: 'categoria_id', key: 'categoria_id', render: (id: number) => catMap.get(id) || `#${id}` },
+      { title: 'Peso', dataIndex: 'peso', key: 'peso', render: (val) => `${Number(val || 0).toFixed(2)} kg` },
       { title: 'Precio', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
       { title: 'Registrado por', dataIndex: 'usuario_nombre', key: 'usuario_nombre' },
       { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', render: (val: number, record: Producto) => {
@@ -187,14 +249,38 @@ export default function ProductosPage() {
 
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
 
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+  }
+
+  const hasSelected = selectedRowKeys.length > 0
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2>Gestión de Productos</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProducto(null); form.resetFields(); setModalVisible(true) }}>
-          Nuevo Producto
-        </Button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ margin: 0 }}>Gestión de Productos</h2>
+        <Space wrap>
+          <Popconfirm
+            title="¿Eliminar todos los productos?"
+            onConfirm={handleDeleteAll}
+            okText="Sí, eliminar todos"
+            cancelText="Cancelar"
+          >
+            <Button danger>Eliminar todos</Button>
+          </Popconfirm>
+          <Button icon={<ExportOutlined />} onClick={handleExport}>
+            Exportar
+          </Button>
+          <Button icon={<ImportOutlined />} loading={importing} onClick={() => fileInputRef.current?.click()}>
+            Importar
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProducto(null); form.resetFields(); setModalVisible(true) }}>
+            Nuevo Producto
+          </Button>
+        </Space>
       </div>
+      <input type="file" accept=".xlsx,.xls" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} />
       <div style={{ marginBottom: 16 }}>
         <Input.Search
           placeholder="Buscar por descripción"
@@ -223,8 +309,21 @@ export default function ProductosPage() {
           ))}
         </div>
       </div>
+      {hasSelected && (
+        <div style={{ marginBottom: 8 }}>
+          <span style={{ marginRight: 8 }}>{selectedRowKeys.length} seleccionado(s)</span>
+          <Popconfirm
+            title={`¿Eliminar ${selectedRowKeys.length} producto(s)?`}
+            onConfirm={handleDeleteSelected}
+            okText="Sí, eliminar"
+            cancelText="Cancelar"
+          >
+            <Button danger size="small">Eliminar seleccionados</Button>
+          </Popconfirm>
+        </div>
+      )}
       <Spin spinning={loading}>
-        <Table columns={columns} dataSource={filteredProductos} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table columns={columns} dataSource={filteredProductos} rowKey="id" rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
       </Spin>
       <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
         {editingProducto && (
@@ -262,6 +361,9 @@ export default function ProductosPage() {
             />
           </Form.Item>
           <Form.Item name="precio" label="Precio" rules={[{ required: true }]}>
+            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="peso" label="Peso (kg)">
             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="stock_inicial" label="Stock Inicial" rules={[{ required: true }]}>

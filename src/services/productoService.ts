@@ -29,3 +29,27 @@ export const toggleProductoActivo = async (id: number): Promise<Producto> => {
   const response = await api.patch<Producto>(`/productos/${id}/toggle-activo`)
   return response.data
 }
+
+export const exportProductos = async (): Promise<Blob> => {
+  const response = await api.get('/productos/export-xlsx', { responseType: 'blob' })
+  return response.data
+}
+
+export const importProductos = async (file: File): Promise<{ creados: number; actualizados: number; errores: string[] }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post('/productos/import-xlsx', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
+export const deleteProductosBatch = async (ids: number[]): Promise<{ message: string; count: number }> => {
+  const response = await api.post('/productos/delete-batch', ids)
+  return response.data
+}
+
+export const deleteAllProductos = async (): Promise<{ message: string; count: number }> => {
+  const response = await api.delete('/productos/all')
+  return response.data
+}
