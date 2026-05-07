@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Space, Popconfirm, message } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
-import type { Proveedor } from '../types/proveedor'
-import { getProveedores, createProveedor, deleteProveedor } from '../services/proveedorService'
+import { Table, Button, Modal, Form, Input, Space, Popconfirm, message, Switch } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { getProveedores, createProveedor, deleteProveedor, updateProveedor, toggleProveedorActivo } from '../services/proveedorService'
 
 export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
   const [form] = Form.useForm()
+  const [editingProveedor, setEditingProveedor] = useState<Proveedor | null>(null)
 
   const loadProveedores = async () => {
     setLoading(true)
@@ -25,8 +24,13 @@ export default function ProveedoresPage() {
 
   const handleSave = async (values: Omit<Proveedor, 'id' | 'activo' | 'fecha_registro'>) => {
     try {
-      await createProveedor(values)
-      message.success('Proveedor creado')
+      if (editingProveedor) {
+        await updateProveedor(editingProveedor.id, values)
+        message.success('Proveedor actualizado')
+      } else {
+        await createProveedor(values)
+        message.success('Proveedor creado')
+      }
       setModalVisible(false)
       form.resetFields()
       loadProveedores()
@@ -45,6 +49,15 @@ export default function ProveedoresPage() {
     }
   }
 
+  const handleToggleActivo = async (id: number) => {
+    try {
+      await toggleProveedorActivo(id)
+      loadProveedores()
+    } catch (error) {
+      message.error('Error al cambiar estado')
+    }
+  }
+
   const columns: ColumnsType<Proveedor> = [
     { title: 'ID', dataIndex: 'id', key: 'id' },
     { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
@@ -53,9 +66,13 @@ export default function ProveedoresPage() {
     { title: 'Contacto', dataIndex: 'contacto', key: 'contacto' },
     { title: 'Celular', dataIndex: 'celular_contacto', key: 'celular_contacto' },
     { title: 'Email', dataIndex: 'email_contacto', key: 'email_contacto' },
+    { title: 'Estado', dataIndex: 'activo', key: 'activo', render: (activo: boolean, record: Proveedor) => (
+      <Switch checked={activo} onChange={() => handleToggleActivo(record.id)} size="small" />
+    )},
     {
       title: 'Acciones', key: 'acciones', render: (_, record) => (
         <Space>
+          <Button icon={<EditOutlined />} size="small" onClick={() => { setEditingProveedor(record); form.setFieldsValue(record); setModalVisible(true) }} />
           <Popconfirm title="¿Eliminar proveedor?" onConfirm={() => handleDelete(record.id)}>
             <Button icon={<DeleteOutlined />} size="small" danger />
           </Popconfirm>
@@ -68,12 +85,12 @@ export default function ProveedoresPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2>Gestión de Proveedores</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProveedor(null); form.resetFields(); setModalVisible(true) }}>
           Nuevo Proveedor
         </Button>
       </div>
       <Table columns={columns} dataSource={proveedores} loading={loading} rowKey="id" pagination={{ pageSize: 10 }} />
-      <Modal title="Nuevo Proveedor" open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
+      <Modal title={editingProveedor ? 'Editar Proveedor' : 'Nuevo Proveedor'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleSave}>
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
             <Input />

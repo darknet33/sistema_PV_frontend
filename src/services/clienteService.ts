@@ -14,3 +14,13 @@ export const createCliente = async (data: Omit<Cliente, 'id' | 'activo' | 'fecha
 export const deleteCliente = async (id: number): Promise<void> => {
   await api.delete(`/clientes/${id}`)
 }
+
+export const updateCliente = async (id: number, data: Omit<Cliente, 'id' | 'activo' | 'fecha_registro'>): Promise<Cliente> => {
+  const response = await api.put<Cliente>(`/clientes/${id}`, data)
+  return response.data
+}
+
+export const toggleClienteActivo = async (id: number): Promise<Cliente> => {
+  const response = await api.patch<Cliente>(`/clientes/${id}/toggle-activo`)
+  return response.data
+}

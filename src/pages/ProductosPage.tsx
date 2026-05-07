@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
-import { getProductos, createProducto, updateProducto, deleteProducto } from '../services/productoService'
+import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo } from '../services/productoService'
 import categoriaService, { Categoria } from '../services/categoriaService'
 
 export default function ProductosPage() {
@@ -17,6 +17,17 @@ export default function ProductosPage() {
   const [catModalVisible, setCatModalVisible] = useState(false)
   const [catForm] = Form.useForm()
   const [editingCategoria, setEditingCategoria] = useState<Categoria | null>(null)
+
+  const [filterCategoria, setFilterCategoria] = useState<number | undefined>(undefined)
+  const [searchText, setSearchText] = useState('')
+
+  const filteredProductos = useMemo(() => {
+    return productos.filter((p) => {
+      const matchesCategoria = filterCategoria ? p.categoria_id === filterCategoria : true
+      const matchesSearch = p.descripcion?.toLowerCase().includes(searchText.toLowerCase())
+      return matchesCategoria && matchesSearch
+    })
+  }, [productos, filterCategoria, searchText])
 
   const loadProductos = async () => {
     setLoading(true)
@@ -70,6 +81,15 @@ export default function ProductosPage() {
       loadProductos()
     } catch (error) {
       message.error('Error al eliminar')
+    }
+  }
+
+  const handleToggleActivo = async (id: number) => {
+    try {
+      await toggleProductoActivo(id)
+      loadProductos()
+    } catch (error) {
+      message.error('Error al cambiar estado')
     }
   }
 
@@ -137,10 +157,15 @@ export default function ProductosPage() {
       { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
       { title: 'Marca', dataIndex: 'marca', key: 'marca' },
       { title: 'Categoría', dataIndex: 'categoria_id', key: 'categoria_id', render: (id: number) => catMap.get(id) || `#${id}` },
-      { title: 'Precio', dataIndex: 'precio', key: 'precio', render: (val: number) => `S/. ${(val || 0).toFixed(2)}` },
-      { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', render: (val: number) => val ?? 0 },
+      { title: 'Precio', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
+      { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', render: (val: number, record: Producto) => {
+        const bajo = val < (record.stock_minimo || 0)
+        return <Tag color={bajo ? 'red' : 'default'}>{val ?? 0}{bajo ? ' ⚠️' : ''}</Tag>
+      }},
       { title: 'Stock Mínimo', dataIndex: 'stock_minimo', key: 'stock_minimo', render: (val: number) => val ?? 0 },
-      { title: 'Estado', dataIndex: 'activo', key: 'activo', render: (activo: boolean) => <Tag color={activo ? 'green' : 'red'}>{activo ? 'Activo' : 'Inactivo'}</Tag> },
+      { title: 'Estado', dataIndex: 'activo', key: 'activo', render: (activo: boolean, record: Producto) => (
+        <Switch checked={activo} onChange={() => handleToggleActivo(record.id)} size="small" />
+      )},
       {
         title: 'Acciones', key: 'acciones', render: (_, record) => (
           <Space>
@@ -159,6 +184,8 @@ export default function ProductosPage() {
     [categorias]
   )
 
+  const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -167,8 +194,36 @@ export default function ProductosPage() {
           Nuevo Producto
         </Button>
       </div>
+      <div style={{ marginBottom: 16 }}>
+        <Input.Search
+          placeholder="Buscar por descripción"
+          allowClear
+          style={{ maxWidth: 300, marginBottom: 12 }}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Tag.CheckableTag
+            checked={filterCategoria === undefined}
+            onChange={() => setFilterCategoria(undefined)}
+            style={{ margin: 0 }}
+          >
+            Todas
+          </Tag.CheckableTag>
+          {categorias.map((cat, idx) => (
+            <Tag.CheckableTag
+              key={cat.id}
+              checked={filterCategoria === cat.id}
+              onChange={() => setFilterCategoria(cat.id)}
+              style={{ margin: 0, backgroundColor: filterCategoria === cat.id ? colors[idx % colors.length] : undefined }}
+            >
+              {cat.nombre}
+            </Tag.CheckableTag>
+          ))}
+        </div>
+      </div>
       <Spin spinning={loading}>
-        <Table columns={columns} dataSource={productos} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table columns={columns} dataSource={filteredProductos} rowKey="id" pagination={{ pageSize: 10 }} />
       </Spin>
       <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleSave}>
@@ -185,7 +240,7 @@ export default function ProductosPage() {
             <Select
               placeholder="Seleccione una categoría"
               options={catSelectOptions}
-              dropdownRender={(menu) => (
+              popupRender={(menu) => (
                 <>
                   {menu}
                   <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>

@@ -24,3 +24,8 @@ export const updateProducto = async (id: number, data: ProductoUpdate): Promise<
 export const deleteProducto = async (id: number): Promise<void> => {
   await api.delete(`/productos/${id}`)
 }
+
+export const toggleProductoActivo = async (id: number): Promise<Producto> => {
+  const response = await api.patch<Producto>(`/productos/${id}/toggle-activo`)
+  return response.data
+}
