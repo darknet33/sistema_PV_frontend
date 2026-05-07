@@ -35,7 +35,7 @@ export const exportProductos = async (): Promise<Blob> => {
   return response.data
 }
 
-export const importProductos = async (file: File): Promise<{ creados: number; actualizados: number; errores: string[] }> => {
+export const importProductos = async (file: File): Promise<{ creados: number; actualizados: number; errores: string[]; procesados: number }> => {
   const formData = new FormData()
   formData.append('file', file)
   const response = await api.post('/productos/import-xlsx', formData, {

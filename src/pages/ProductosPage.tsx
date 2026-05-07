@@ -22,6 +22,7 @@ export default function ProductosPage() {
   const [searchText, setSearchText] = useState('')
   const [importing, setImporting] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filteredProductos = useMemo(() => {
@@ -32,11 +33,26 @@ export default function ProductosPage() {
     })
   }, [productos, filterCategoria, searchText])
 
+  const handlePaginationChange = (page: number, pageSize: number) => {
+    setPagination({ current: page, pageSize })
+  }
+
+  const handleFilterChange = (newFilter: number | undefined) => {
+    setFilterCategoria(newFilter)
+    setPagination(prev => ({ ...prev, current: 1 }))
+  }
+
+  const handleSearchChange = (newSearch: string) => {
+    setSearchText(newSearch)
+    setPagination(prev => ({ ...prev, current: 1 }))
+  }
+
   const loadProductos = async () => {
     setLoading(true)
     try {
       const data = await getProductos()
       setProductos(Array.isArray(data) ? data : [])
+      setPagination(prev => ({ ...prev, current: 1 }))
     } catch (error) {
       message.error('Error al cargar productos')
       setProductos([])
@@ -120,10 +136,10 @@ export default function ProductosPage() {
       loadProductos()
       loadCategorias()
       if (result.errores.length > 0) {
-        message.warning(`Importacion completada con errores: ${result.creados} creados, ${result.actualizados} actualizados, ${result.errores.length} errores`)
+        message.warning(`Importacion: ${result.procesados} procesados, ${result.creados} creados, ${result.actualizados} actualizados, ${result.errores.length} errores`)
         console.error('Errores de importacion:', result.errores)
       } else {
-        message.success(`Importacion exitosa: ${result.creados} creados, ${result.actualizados} actualizados`)
+        message.success(`Importacion exitosa: ${result.procesados} procesados, ${result.creados} creados, ${result.actualizados} actualizados`)
       }
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al importar productos')
@@ -288,12 +304,12 @@ export default function ProductosPage() {
           allowClear
           style={{ maxWidth: 300, marginBottom: 12 }}
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
         />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <Tag.CheckableTag
             checked={filterCategoria === undefined}
-            onChange={() => setFilterCategoria(undefined)}
+            onChange={() => handleFilterChange(undefined)}
             style={{ margin: 0 }}
           >
             Todas
@@ -302,7 +318,7 @@ export default function ProductosPage() {
             <Tag.CheckableTag
               key={cat.id}
               checked={filterCategoria === cat.id}
-              onChange={() => setFilterCategoria(cat.id)}
+              onChange={() => handleFilterChange(cat.id)}
               style={{ margin: 0, backgroundColor: filterCategoria === cat.id ? colors[idx % colors.length] : undefined }}
             >
               {cat.nombre}
@@ -324,7 +340,21 @@ export default function ProductosPage() {
         </div>
       )}
       <Spin spinning={loading}>
-        <Table columns={columns} dataSource={filteredProductos} rowKey="id" rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
+        <Table
+          columns={columns}
+          dataSource={filteredProductos}
+          rowKey="id"
+          rowSelection={rowSelection}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            showTotal: (total) => `${total} productos`,
+            onChange: handlePaginationChange,
+            onShowSizeChange: handlePaginationChange,
+          }}
+        />
       </Spin>
       <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
         {editingProducto && (
