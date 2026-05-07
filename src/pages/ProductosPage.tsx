@@ -118,6 +118,7 @@ export default function ProductosPage() {
     try {
       const result = await importProductos(file)
       loadProductos()
+      loadCategorias()
       if (result.errores.length > 0) {
         message.warning(`Importacion completada con errores: ${result.creados} creados, ${result.actualizados} actualizados, ${result.errores.length} errores`)
         console.error('Errores de importacion:', result.errores)

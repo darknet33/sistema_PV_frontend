@@ -13,6 +13,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   SettingOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { useAuthStore } from '../stores/authStore'
@@ -22,6 +23,7 @@ const { Header, Sider, Content } = Layout
 const MODULE_ROUTE_MAP: Record<string, { path: string; icon: React.ReactNode; label: string; parent?: string; parentIcon?: React.ReactNode }> = {
   Dashboard: { path: '/', icon: <DashboardOutlined />, label: 'Inicio' },
   Productos: { path: '/productos', icon: <ShoppingCartOutlined />, label: 'Productos' },
+  Categorias: { path: '/configuracion/categorias', icon: <AppstoreOutlined />, label: 'Categorías', parent: 'Configuraciones', parentIcon: <SettingOutlined /> },
   Compras: { path: '/compras', icon: <ShoppingOutlined />, label: 'Compras' },
   Ventas: { path: '/ventas', icon: <ShopOutlined />, label: 'Ventas' },
   Clientes: { path: '/clientes', icon: <TeamOutlined />, label: 'Clientes' },
@@ -43,33 +45,25 @@ export default function DashboardPage() {
   const menuItems = useMemo(() => {
     const moduloNombres = new Set(modulos.map((m) => m.nombre))
     const items: MenuProps['items'] = []
-    const configChildren: MenuProps['items'] = []
+    const hasConfigModules = ['Usuarios', 'Roles', 'Modulos', 'Categorias', 'Comprobantes', 'Estados'].some((m) => moduloNombres.has(m))
 
     for (const moduloNombre of moduloNombres) {
       const mapping = MODULE_ROUTE_MAP[moduloNombre]
       if (!mapping) continue
+      if (mapping.parent) continue
 
-      if (mapping.parent) {
-        configChildren.push({
-          key: mapping.path,
-          icon: mapping.icon,
-          label: mapping.label,
-        })
-      } else {
-        items.push({
-          key: mapping.path,
-          icon: mapping.icon,
-          label: mapping.label,
-        })
-      }
+      items.push({
+        key: mapping.path,
+        icon: mapping.icon,
+        label: mapping.label,
+      })
     }
 
-    if (configChildren.length > 0) {
+    if (hasConfigModules) {
       items.push({
-        key: '/configuracion',
+        key: '/configuracion/usuarios',
         icon: <SettingOutlined />,
         label: 'Configuraciones',
-        children: configChildren,
       })
     }
 

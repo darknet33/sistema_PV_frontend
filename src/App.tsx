@@ -14,6 +14,7 @@ import RolesPage from './pages/configuracion/RolesPage'
 import ModulosPage from './pages/configuracion/ModulosPage'
 import ComprobantesPage from './pages/configuracion/ComprobantesPage'
 import EstadosPage from './pages/configuracion/EstadosPage'
+import CategoriasPage from './pages/configuracion/CategoriasPage'
 
 const MODULE_ROUTE_MAP: Record<string, string> = {
   Dashboard: '/',
@@ -26,6 +27,7 @@ const MODULE_ROUTE_MAP: Record<string, string> = {
   Usuarios: '/configuracion/usuarios',
   Roles: '/configuracion/roles',
   Modulos: '/configuracion/modulos',
+  Categorias: '/configuracion/categorias',
   Comprobantes: '/configuracion/comprobantes',
   Estados: '/configuracion/estados',
 }
@@ -61,6 +63,7 @@ function App() {
           {hasAccess('/configuracion/usuarios') && <Route path="usuarios" element={<UsuariosPage />} />}
           {hasAccess('/configuracion/roles') && <Route path="roles" element={<RolesPage />} />}
           <Route path="modulos" element={<ModulosPage />} />
+          {hasAccess('/configuracion/categorias') && <Route path="categorias" element={<CategoriasPage />} />}
           {hasAccess('/configuracion/comprobantes') && <Route path="comprobantes" element={<ComprobantesPage />} />}
           {hasAccess('/configuracion/estados') && <Route path="estados" element={<EstadosPage />} />}
         </Route>
