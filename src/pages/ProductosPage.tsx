@@ -158,6 +158,7 @@ export default function ProductosPage() {
       { title: 'Marca', dataIndex: 'marca', key: 'marca' },
       { title: 'Categoría', dataIndex: 'categoria_id', key: 'categoria_id', render: (id: number) => catMap.get(id) || `#${id}` },
       { title: 'Precio', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
+      { title: 'Registrado por', dataIndex: 'usuario_nombre', key: 'usuario_nombre' },
       { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', render: (val: number, record: Producto) => {
         const bajo = val < (record.stock_minimo || 0)
         return <Tag color={bajo ? 'red' : 'default'}>{val ?? 0}{bajo ? ' ⚠️' : ''}</Tag>
@@ -226,6 +227,14 @@ export default function ProductosPage() {
         <Table columns={columns} dataSource={filteredProductos} rowKey="id" pagination={{ pageSize: 10 }} />
       </Spin>
       <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
+        {editingProducto && (
+          <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
+            <div style={{ display: 'flex', gap: 24 }}>
+              <div><strong>Creado:</strong> {editingProducto.fecha_registro ? new Date(editingProducto.fecha_registro).toLocaleString('es-BO') : '-'}</div>
+              <div><strong>Última modificación:</strong> {editingProducto.fecha_actualizado ? new Date(editingProducto.fecha_actualizado).toLocaleString('es-BO') : '-'}</div>
+            </div>
+          </div>
+        )}
         <Form form={form} layout="vertical" onFinish={handleSave}>
           <Form.Item name="codigo" label="Código" rules={[{ required: true }]}>
             <Input />

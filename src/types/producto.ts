@@ -13,7 +13,8 @@ export interface Producto {
   usuario_id: number
   activo: boolean
   fecha_registro: string
-  fecha_actualizado: string
+  fecha_actualizado: string | null
+  usuario_nombre: string
 }
 
 export interface ProductoCreate {
