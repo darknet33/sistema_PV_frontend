@@ -22,7 +22,7 @@ export default function ProductosPage() {
   const [searchText, setSearchText] = useState('')
   const [importing, setImporting] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 })
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filteredProductos = useMemo(() => {
