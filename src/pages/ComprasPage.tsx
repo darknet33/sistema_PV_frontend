@@ -39,7 +39,7 @@ export default function ComprasPage() {
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
   const [numComprobanteAuto, setNumComprobanteAuto] = useState('')
-  const [autoNum, setAutoNum] = useState(true)
+  const [autoNum, setAutoNum] = useState(false)
 
   const [filterFecha, setFilterFecha] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
   const [searchProveedorText, setSearchProveedorText] = useState('')
@@ -195,7 +195,7 @@ export default function ComprasPage() {
     setEditingCompra(null)
     setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }])
     setNumComprobanteAuto('')
-    setAutoNum(true)
+    setAutoNum(false)
     form.resetFields()
     setModalVisible(true)
   }

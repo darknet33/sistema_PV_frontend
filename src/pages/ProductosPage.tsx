@@ -28,7 +28,8 @@ export default function ProductosPage() {
   const filteredProductos = useMemo(() => {
     return productos.filter((p) => {
       const matchesCategoria = filterCategoria ? p.categoria_id === filterCategoria : true
-      const matchesSearch = p.descripcion?.toLowerCase().includes(searchText.toLowerCase())
+      const q = searchText.toLowerCase()
+      const matchesSearch = p.descripcion?.toLowerCase().includes(q) || p.codigo?.toLowerCase().includes(q)
       return matchesCategoria && matchesSearch
     })
   }, [productos, filterCategoria, searchText])
