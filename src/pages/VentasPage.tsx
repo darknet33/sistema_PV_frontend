@@ -1,45 +1,286 @@
-import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, message } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import type { Venta } from '../types/venta'
-import { getVentas, createVenta, deleteVenta } from '../services/ventaService'
 import dayjs from 'dayjs'
+import type { Venta, VentaCreate } from '../types/venta'
+import { getVentas, createVenta, updateVenta, deleteVenta, anularVenta, downloadVentaReport, downloadVentaPdf } from '../services/ventaService'
+import { getClientes, createCliente, updateCliente, deleteCliente } from '../services/clienteService'
+import comprobanteService from '../services/comprobanteService'
+import { getProductos } from '../services/productoService'
+import estadoService from '../services/estadoService'
+import categoriaService from '../services/categoriaService'
+import type { Cliente } from '../types/cliente'
+import type { Producto } from '../types/producto'
+import type { Categoria } from '../services/categoriaService'
+
+interface DetalleLine {
+  key: string
+  producto_id: number | null
+  producto_nombre: string
+  producto_codigo: string
+  producto_categoria: string
+  cantidad: number
+  precio: number
+  utilidad: number
+}
 
 export default function VentasPage() {
   const [ventas, setVentas] = useState<Venta[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
+  const [editingVenta, setEditingVenta] = useState<Venta | null>(null)
   const [form] = Form.useForm()
 
-  const loadVentas = async () => {
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [comprobantes, setComprobantes] = useState<{ id: number; nombre: string; numero: number }[]>([])
+  const [estados, setEstados] = useState<{ id: number; nombre: string }[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
+
+  const [detalles, setDetalles] = useState<DetalleLine[]>([])
+  const [numComprobanteAuto, setNumComprobanteAuto] = useState('')
+  const [autoNum, setAutoNum] = useState(false)
+
+  const [filterFecha, setFilterFecha] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
+  const [searchClienteText, setSearchClienteText] = useState('')
+  const [filterEstado, setFilterEstado] = useState<number | undefined>(undefined)
+
+  const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
+
+  const [clienteModalVisible, setClienteModalVisible] = useState(false)
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null)
+  const [clienteForm] = Form.useForm()
+
+  const [comprobanteModalVisible, setComprobanteModalVisible] = useState(false)
+  const [editingComprobante, setEditingComprobante] = useState<any>(null)
+  const [comprobanteForm] = Form.useForm()
+
+  const [estadoModalVisible, setEstadoModalVisible] = useState(false)
+  const [editingEstado, setEditingEstado] = useState<any>(null)
+  const [estadoForm] = Form.useForm()
+
+  const [productoModalVisible, setProductoModalVisible] = useState(false)
+  const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
+  const [productoSearchText, setProductoSearchText] = useState('')
+
+  const clienteOptions = useMemo(() =>
+    clientes.filter((c) => c.activo !== false).map((c) => ({ value: c.id, label: c.nombre })),
+    [clientes]
+  )
+
+  const comprobanteOptions = useMemo(() =>
+    comprobantes.map((c) => ({ value: c.id, label: c.nombre })),
+    [comprobantes]
+  )
+
+  const estadoOptions = useMemo(() =>
+    estados.map((e) => ({ value: e.id, label: e.nombre })),
+    [estados]
+  )
+
+  const catMap = useMemo(() => {
+    const map = new Map<number, string>()
+    categorias.forEach((c) => map.set(c.id, c.nombre))
+    return map
+  }, [categorias])
+
+  const productosActivos = useMemo(() =>
+    productos.filter((p) => p.activo !== false),
+    [productos]
+  )
+
+  const filteredProductos = useMemo(() => {
+    const base = productosActivos
+    if (!productoSearchText) return base
+    const q = productoSearchText.toLowerCase()
+    return base.filter((p) => {
+      const catNombre = catMap.get(p.categoria_id) || ''
+      return p.codigo.toLowerCase().includes(q) ||
+        p.descripcion.toLowerCase().includes(q) ||
+        p.marca.toLowerCase().includes(q) ||
+        catNombre.toLowerCase().includes(q)
+    })
+  }, [productosActivos, productoSearchText, catMap])
+
+  const loadVentas = useCallback(async () => {
     setLoading(true)
     try {
       const data = await getVentas()
       setVentas(data)
-    } catch (error) {
+    } catch {
       message.error('Error al cargar ventas')
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const loadClientes = useCallback(async () => {
+    try {
+      const data = await getClientes()
+      setClientes(data)
+    } catch {
+      message.error('Error al cargar clientes')
+    }
+  }, [])
+
+  const loadComprobantes = useCallback(async () => {
+    try {
+      const data = await comprobanteService.getAll()
+      setComprobantes(data)
+    } catch {
+      message.error('Error al cargar comprobantes')
+    }
+  }, [])
+
+  const loadEstados = useCallback(async () => {
+    try {
+      const data = await estadoService.getAll()
+      setEstados(data)
+    } catch {
+      message.error('Error al cargar estados')
+    }
+  }, [])
+
+  const loadProductos = useCallback(async () => {
+    try {
+      const data = await getProductos()
+      setProductos(Array.isArray(data) ? data : [])
+    } catch {
+      message.error('Error al cargar productos')
+      setProductos([])
+    }
+  }, [])
+
+  const loadCategorias = useCallback(async () => {
+    try {
+      const data = await categoriaService.getAll()
+      setCategorias(Array.isArray(data) ? data : [])
+    } catch {
+      message.error('Error al cargar categorías')
+      setCategorias([])
+    }
+  }, [])
+
+  const loadAllData = useCallback(async () => {
+    await Promise.all([
+      loadVentas(),
+      loadClientes(),
+      loadComprobantes(),
+      loadEstados(),
+      loadProductos(),
+      loadCategorias(),
+    ])
+  }, [loadVentas, loadClientes, loadComprobantes, loadEstados, loadProductos, loadCategorias])
+
+  useEffect(() => { loadAllData() }, [loadAllData])
+
+  const filteredVentas = useMemo(() => {
+    return ventas.filter((v) => {
+      if (filterFecha && filterFecha[0] && filterFecha[1]) {
+        const fecha = dayjs(v.fecha)
+        const inicio = filterFecha[0].startOf('day')
+        const fin = filterFecha[1].endOf('day')
+        if (fecha.isBefore(inicio) || fecha.isAfter(fin)) return false
+      }
+      if (searchClienteText) {
+        const q = searchClienteText.toLowerCase()
+        if (!v.cliente_nombre?.toLowerCase().includes(q)) return false
+      }
+      if (filterEstado && v.estado_id !== filterEstado) return false
+      return true
+    })
+  }, [ventas, filterFecha, searchClienteText, filterEstado])
+
+  const openCreateModal = () => {
+    setEditingVenta(null)
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, utilidad: 0 }])
+    setNumComprobanteAuto('')
+    setAutoNum(true)
+    form.resetFields()
+    setModalVisible(true)
   }
 
-  useEffect(() => { loadVentas() }, [])
+  const openEditModal = (venta: Venta) => {
+    setEditingVenta(venta)
+    setAutoNum(false)
+    form.setFieldsValue({
+      fecha: dayjs(venta.fecha),
+      cliente_id: venta.cliente_id,
+      comprobante_id: venta.comprobante_id,
+      num_comprobante: venta.num_comprobante,
+      estado_id: venta.estado_id,
+      impuesto: Number(venta.impuesto || 0),
+      descuento: Number(venta.descuento || 0),
+    })
+    setNumComprobanteAuto(venta.num_comprobante)
+    setDetalles(
+      venta.detalles?.map((d, i) => ({
+        key: String(i + 1),
+        producto_id: d.producto_id,
+        producto_nombre: d.producto_nombre,
+        producto_codigo: d.producto_codigo,
+        producto_categoria: d.producto_categoria || '',
+        cantidad: d.cantidad,
+        precio: Number(d.precio),
+        utilidad: Number(d.utilidad),
+      })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, utilidad: 0 }]
+    )
+    setModalVisible(true)
+  }
 
-  const handleSave = async (values: any) => {
+  const handleSave = async () => {
     try {
-      const ventaData = {
-        ...values,
-        fecha: values.fecha.format('YYYY-MM-DD HH:mm:ss'),
-        detalles: [{ producto_id: 1, cantidad: 1, precio: 0, utilidad: 0 }]
+      const values = await form.validateFields()
+      const validDetalles = detalles.filter((d) => d.producto_id != null)
+      if (validDetalles.length === 0) {
+        message.error('Debe agregar al menos un producto')
+        return
       }
-      await createVenta(ventaData)
-      message.success('Venta registrada')
+
+      const ventaData: VentaCreate = {
+        fecha: values.fecha.format('YYYY-MM-DD'),
+        cliente_id: values.cliente_id,
+        comprobante_id: values.comprobante_id,
+        estado_id: values.estado_id,
+        impuesto: values.impuesto || 0,
+        descuento: values.descuento || 0,
+        num_comprobante: autoNum ? undefined : (values.num_comprobante || ''),
+        automatico: autoNum,
+        detalles: validDetalles.map((d) => ({
+          producto_id: d.producto_id!,
+          cantidad: d.cantidad,
+          precio: d.precio,
+          utilidad: d.utilidad,
+        })),
+      }
+
+      if (editingVenta) {
+        ventaData.num_comprobante = values.num_comprobante
+        await updateVenta(editingVenta.id, ventaData)
+        message.success('Venta actualizada')
+      } else {
+        await createVenta(ventaData)
+        message.success('Venta registrada')
+      }
+
       setModalVisible(false)
       form.resetFields()
+      setDetalles([])
+      setNumComprobanteAuto('')
       loadVentas()
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al guardar')
+    }
+  }
+
+  const handleAnular = async (id: number) => {
+    try {
+      await anularVenta(id)
+      message.success('Venta anulada')
+      loadVentas()
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al anular')
     }
   }
 
@@ -48,61 +289,567 @@ export default function VentasPage() {
       await deleteVenta(id)
       message.success('Venta eliminada')
       loadVentas()
-    } catch (error) {
-      message.error('Error al eliminar')
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al eliminar')
+    }
+  }
+
+  const addDetalleRow = () => {
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, utilidad: 0 }])
+  }
+
+  const removeDetalleRow = (key: string) => {
+    setDetalles((prev) => prev.filter((d) => d.key !== key))
+  }
+
+  const openProductoModal = (detKey: string) => {
+    setSelectedDetalleKey(detKey)
+    setProductoSearchText('')
+    setProductoModalVisible(true)
+  }
+
+  const selectProducto = (producto: Producto) => {
+    if (selectedDetalleKey) {
+      setDetalles((prev) => prev.map((d) =>
+        d.key === selectedDetalleKey
+          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: Number(producto.precio || 0), utilidad: Number(producto.utilidad || 0) }
+          : d
+      ))
+    }
+    setProductoModalVisible(false)
+    setSelectedDetalleKey(null)
+  }
+
+  const updateDetalle = (key: string, field: keyof DetalleLine, value: any) => {
+    setDetalles((prev) => prev.map((d) => (d.key === key ? { ...d, [field]: value } : d)))
+  }
+
+  const updateNumComprobanteAuto = (comprobanteId: number | null) => {
+    if (!comprobanteId || editingVenta || !autoNum) return
+    const comp = comprobantes.find((c) => c.id === comprobanteId)
+    if (comp) {
+      setNumComprobanteAuto(String(comp.numero).padStart(8, '0'))
+    } else {
+      setNumComprobanteAuto('')
+    }
+  }
+
+  const subtotalCalculado = useMemo(() => {
+    return detalles.reduce((sum, d) => sum + (d.cantidad || 0) * (d.precio || 0), 0)
+  }, [detalles])
+
+  const watchedImpuesto = Form.useWatch('impuesto', form)
+  const watchedDescuento = Form.useWatch('descuento', form)
+  const impuestoPct = watchedImpuesto
+  const descuentoPct = watchedDescuento
+
+  const totalCalculado = useMemo(() => {
+    const imp = Number(impuestoPct || 0)
+    const desc = Number(descuentoPct || 0)
+    return subtotalCalculado + (subtotalCalculado * imp / 100) - (subtotalCalculado * desc / 100)
+  }, [subtotalCalculado, impuestoPct, descuentoPct])
+
+  const handleDownloadReport = async () => {
+    try {
+      const inicio = filterFecha?.[0]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().startOf('month').format('YYYY-MM-DDTHH:mm:ss')
+      const fin = filterFecha?.[1]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().format('YYYY-MM-DDTHH:mm:ss')
+      await downloadVentaReport(inicio, fin, searchClienteText || undefined, filterEstado)
+      message.success('Reporte descargado')
+    } catch {
+      message.error('Error al descargar reporte')
+    }
+  }
+
+  const handlePrintPdf = async (id: number) => {
+    try {
+      await downloadVentaPdf(id)
+      message.success('PDF descargado')
+    } catch {
+      message.error('Error al generar PDF')
     }
   }
 
   const columns: ColumnsType<Venta> = [
-    { title: 'ID', dataIndex: 'id', key: 'id' },
-    { title: 'Fecha', dataIndex: 'fecha', key: 'fecha' },
-    { title: 'Cliente ID', dataIndex: 'cliente_id', key: 'cliente_id' },
-    { title: 'Comprobante', dataIndex: 'num_comprobante', key: 'num_comprobante' },
-    { title: 'Estado ID', dataIndex: 'estado_id', key: 'estado_id' },
-    { title: 'Total', dataIndex: 'total', key: 'total', render: (val: number) => `S/. ${val?.toFixed(2) || '0.00'}` },
-    { title: 'Impuesto', dataIndex: 'impuesto', key: 'impuesto', render: (val: number) => `${val || 0}%` },
-    { title: 'Descuento', dataIndex: 'descuento', key: 'descuento', render: (val: number) => `${val || 0}%` },
+    { title: 'ID', dataIndex: 'id', key: 'id', width: 60 },
+    { title: 'Fecha', dataIndex: 'fecha', key: 'fecha', render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm') },
+    { title: 'Cliente', dataIndex: 'cliente_nombre', key: 'cliente_nombre' },
+    { title: 'Comprobante', key: 'comprobante', render: (_, r) => `${r.comprobante_nombre} ${r.num_comprobante || ''}` },
+    { title: 'Estado', dataIndex: 'estado_nombre', key: 'estado_nombre', render: (val: string) => <Tag>{val}</Tag> },
+    { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Imp.', dataIndex: 'impuesto', key: 'impuesto', render: (val: number) => `${Number(val || 0)}%` },
+    { title: 'Desc.', dataIndex: 'descuento', key: 'descuento', render: (val: number) => `${Number(val || 0)}%` },
     {
-      title: 'Acciones', key: 'acciones', render: (_, record) => (
+      title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
         <Space>
-          <Popconfirm title="¿Eliminar venta?" onConfirm={() => handleDelete(record.id)}>
-            <Button icon={<DeleteOutlined />} size="small" danger />
+          <Button icon={<EditOutlined />} size="small" onClick={() => openEditModal(record)} />
+          <Button icon={<PrinterOutlined />} size="small" onClick={() => handlePrintPdf(record.id)} />
+          {record.estado_nombre !== 'ANULADO' ? (
+            <Popconfirm title="¿Anular venta?" onConfirm={() => handleAnular(record.id)}>
+              <Button icon={<CloseCircleOutlined />} size="small" style={{ color: '#faad14' }} />
+            </Popconfirm>
+          ) : (
+            <Popconfirm title="¿Eliminar venta?" onConfirm={() => handleDelete(record.id)}>
+              <Button icon={<DeleteOutlined />} size="small" danger />
+            </Popconfirm>
+          )}
+        </Space>
+      ),
+    },
+  ]
+
+  const expandedRowRender = (record: Venta) => {
+    const detColumns: ColumnsType<any> = [
+      { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 100 },
+      { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
+      { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', width: 80 },
+      { title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+      { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio || 0)).toFixed(2)}` },
+    ]
+    return (
+      <Table
+        columns={detColumns}
+        dataSource={record.detalles?.map((d) => ({ ...d, key: d.id }))}
+        pagination={false}
+        rowKey="id"
+        size="small"
+      />
+    )
+  }
+
+  const productoColumns: ColumnsType<Producto> = [
+    { title: 'Código', dataIndex: 'codigo', key: 'codigo', width: 100 },
+    {
+      title: 'Producto',
+      key: 'producto',
+      render: (_, r) => `${catMap.get(r.categoria_id) || ''} - ${r.descripcion}`,
+    },
+    { title: 'Marca', dataIndex: 'marca', key: 'marca', width: 120 },
+    { title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 80 },
+  ]
+
+  const clienteColumns: ColumnsType<Cliente> = [
+    { title: 'ID', dataIndex: 'id', width: 60 },
+    { title: 'Nombre', dataIndex: 'nombre' },
+    { title: 'NIT', dataIndex: 'nit' },
+    { title: 'Celular', dataIndex: 'celular' },
+    { title: 'Dirección', dataIndex: 'direccion' },
+    {
+      title: 'Acciones', width: 120,
+      render: (_: unknown, record: Cliente) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingCliente(record); clienteForm.setFieldsValue(record); setClienteModalVisible(true) }} />
+          <Popconfirm title="¿Eliminar cliente?" onConfirm={async () => { try { await deleteCliente(record.id); message.success('Cliente eliminado'); loadClientes() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
-      )
-    }
+      ),
+    },
+  ]
+
+  const comprobanteSubColumns = [
+    { title: 'ID', dataIndex: 'id', width: 60 },
+    { title: 'Nombre', dataIndex: 'nombre' },
+    { title: 'Número', dataIndex: 'numero' },
+    {
+      title: 'Acciones', width: 120,
+      render: (_: unknown, record: any) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingComprobante(record); comprobanteForm.setFieldsValue(record); setComprobanteModalVisible(true) }} />
+          <Popconfirm title="¿Eliminar comprobante?" onConfirm={async () => { try { await comprobanteService.delete(record.id); message.success('Comprobante eliminado'); loadComprobantes() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
+
+  const estadoSubColumns = [
+    { title: 'ID', dataIndex: 'id', width: 60 },
+    { title: 'Nombre', dataIndex: 'nombre' },
+    {
+      title: 'Acciones', width: 120,
+      render: (_: unknown, record: any) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingEstado(record); estadoForm.setFieldsValue(record); setEstadoModalVisible(true) }} />
+          <Popconfirm title="¿Eliminar estado?" onConfirm={async () => { try { await estadoService.delete(record.id); message.success('Estado eliminado'); loadEstados() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ]
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2>Gestión de Ventas</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
-          Nueva Venta
-        </Button>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={handleDownloadReport}>
+            Reporte PDF
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
+            Nueva Venta
+          </Button>
+        </Space>
       </div>
-      <Table columns={columns} dataSource={ventas} loading={loading} rowKey="id" pagination={{ pageSize: 10 }} />
-      <Modal title="Nueva Venta" open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
-        <Form form={form} layout="vertical" onFinish={handleSave}>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+          <DatePicker.RangePicker
+            value={filterFecha as any}
+            onChange={(dates) => setFilterFecha(dates as any)}
+            placeholder={['Fecha inicio', 'Fecha fin']}
+          />
+          <Input.Search
+            placeholder="Buscar por cliente"
+            allowClear
+            style={{ width: 300 }}
+            value={searchClienteText}
+            onChange={(e) => setSearchClienteText(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Tag.CheckableTag
+            checked={filterEstado === undefined}
+            onChange={() => setFilterEstado(undefined)}
+            style={{ margin: 0 }}
+          >
+            Todos
+          </Tag.CheckableTag>
+          {estados.map((est, idx) => (
+            <Tag.CheckableTag
+              key={est.id}
+              checked={filterEstado === est.id}
+              onChange={() => setFilterEstado(est.id)}
+              style={{ margin: 0, backgroundColor: filterEstado === est.id ? colors[idx % colors.length] : undefined }}
+            >
+              {est.nombre}
+            </Tag.CheckableTag>
+          ))}
+        </div>
+      </div>
+
+      <Table
+        columns={columns}
+        dataSource={filteredVentas}
+        loading={loading}
+        rowKey="id"
+        pagination={{ pageSize: 10 }}
+        expandable={{ expandedRowRender, rowExpandable: (r) => r.detalles && r.detalles.length > 0 }}
+      />
+
+      <Modal
+        title={editingVenta ? 'Editar Venta' : 'Nueva Venta'}
+        open={modalVisible}
+        onCancel={() => { setModalVisible(false); setDetalles([]); setNumComprobanteAuto('') }}
+        onOk={handleSave}
+        width={720}
+      >
+        <Form form={form} layout="vertical">
           <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
-            <DatePicker showTime style={{ width: '100%' }} />
+            <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="cliente_id" label="Cliente ID" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <Form.Item name="cliente_id" label="Cliente" rules={[{ required: true }]} style={{ width: 220, marginBottom: 12 }}>
+              <Select
+                showSearch
+                placeholder="Seleccione un cliente"
+                filterOption={(input, option) => (option?.label as string || '').toLowerCase().includes(input.toLowerCase())}
+                options={clienteOptions}
+                disabled={editingVenta !== null}
+                popupRender={(menu) => (
+                  <>
+                    {menu}
+                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingCliente(null); clienteForm.resetFields(); setClienteModalVisible(true) }}>
+                        Gestionar clientes
+                      </Button>
+                    </div>
+                  </>
+                )}
+              />
+            </Form.Item>
+            <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} style={{ width: 150, marginBottom: 12 }}>
+              <Select
+                placeholder="Seleccione un comprobante"
+                options={comprobanteOptions}
+                disabled={editingVenta !== null}
+                onChange={(val) => updateNumComprobanteAuto(val)}
+                popupRender={(menu) => (
+                  <>
+                    {menu}
+                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingComprobante(null); comprobanteForm.resetFields(); setComprobanteModalVisible(true) }}>
+                        Gestionar comprobantes
+                      </Button>
+                    </div>
+                  </>
+                )}
+              />
+            </Form.Item>
+            <Form.Item name="num_comprobante" label="N° Comprobante" style={{ width: 200, marginBottom: 12 }}>
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  placeholder={autoNum ? 'Automático' : 'Ingrese número'}
+                  value={editingVenta ? undefined : (autoNum ? (numComprobanteAuto || undefined) : undefined)}
+                  disabled={editingVenta !== null || autoNum}
+                  style={{ width: '100%' }}
+                />
+                {!editingVenta && (
+                  <Switch checkedChildren="A" unCheckedChildren="M" checked={autoNum} onChange={(v) => { setAutoNum(v); if (v) setNumComprobanteAuto('') }} />
+                )}
+              </Space.Compact>
+            </Form.Item>
+          </div>
+
+          <Form.Item name="estado_id" label="Estado" rules={[{ required: true }]}>
+            <Select
+              placeholder="Seleccione un estado"
+              options={estadoOptions}
+              popupRender={(menu) => (
+                <>
+                  {menu}
+                  <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingEstado(null); estadoForm.resetFields(); setEstadoModalVisible(true) }}>
+                      Gestionar estados
+                    </Button>
+                  </div>
+                </>
+              )}
+            />
           </Form.Item>
-          <Form.Item name="comprobante_id" label="Comprobante ID" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <Form.Item name="impuesto" label="Impuesto %" style={{ width: 150 }} initialValue={0}>
+              <InputNumber min={0} max={100} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="descuento" label="Descuento %" style={{ width: 150 }} initialValue={0}>
+              <InputNumber min={0} max={100} style={{ width: '100%' }} />
+            </Form.Item>
+          </div>
+
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong>Detalles de venta</strong>
+            {!editingVenta && numComprobanteAuto && (
+              <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
+            )}
+          </div>
+
+          {detalles.map((det, index) => (
+            <Space key={det.key} style={{ width: '100%', marginBottom: 8 }} align="start">
+              <Form.Item label={index === 0 ? 'Producto' : ''} style={{ width: 220 }}>
+                <Input.Search
+                  placeholder="Buscar producto"
+                  value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
+                  readOnly
+                  onSearch={() => openProductoModal(det.key)}
+                  enterButton={<SearchOutlined />}
+                />
+              </Form.Item>
+              <Form.Item label={index === 0 ? 'Cant.' : ''} style={{ width: 80 }}>
+                <InputNumber
+                  min={1}
+                  style={{ width: '100%' }}
+                  value={det.cantidad}
+                  onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
+                />
+              </Form.Item>
+              <Form.Item label={index === 0 ? 'Precio' : ''} style={{ width: 120 }}>
+                <InputNumber
+                  min={0}
+                  step={0.01}
+                  prefix="Bs."
+                  style={{ width: '100%' }}
+                  value={det.precio}
+                  onChange={(val) => updateDetalle(det.key, 'precio', val || 0)}
+                />
+              </Form.Item>
+              <Form.Item label={index === 0 ? 'Utilidad' : ''} style={{ width: 100 }}>
+                <InputNumber
+                  min={0}
+                  step={0.01}
+                  prefix="Bs."
+                  style={{ width: '100%' }}
+                  value={det.utilidad}
+                  onChange={(val) => updateDetalle(det.key, 'utilidad', val || 0)}
+                />
+              </Form.Item>
+              <Form.Item label={index === 0 ? 'Subtotal' : ''} style={{ width: 100 }}>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  value={(det.cantidad || 0) * (det.precio || 0)}
+                  disabled
+                  variant="borderless"
+                />
+              </Form.Item>
+              {detalles.length > 1 && (
+                <Form.Item label={index === 0 ? ' ' : ''}>
+                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} />
+                </Form.Item>
+              )}
+            </Space>
+          ))}
+
+          <Button type="dashed" onClick={addDetalleRow} style={{ width: '100%', marginBottom: 12 }} icon={<PlusOutlined />}>
+            Agregar producto
+          </Button>
+
+          <div style={{ textAlign: 'right', fontSize: 16, fontWeight: 'bold' }}>
+            Subtotal: Bs. {subtotalCalculado.toFixed(2)}
+            {(Number(impuestoPct || 0) > 0 || Number(descuentoPct || 0) > 0) && (
+              <span style={{ display: 'block', fontSize: 18, marginTop: 4 }}>
+                Total: Bs. {totalCalculado.toFixed(2)}
+              </span>
+            )}
+          </div>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Seleccionar producto"
+        open={productoModalVisible}
+        onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
+        footer={null}
+        width={700}
+      >
+        <Input.Search
+          placeholder="Buscar por código, descripción o marca"
+          allowClear
+          style={{ marginBottom: 12 }}
+          value={productoSearchText}
+          onChange={(e) => setProductoSearchText(e.target.value)}
+        />
+        <Table
+          columns={productoColumns}
+          dataSource={filteredProductos}
+          rowKey="id"
+          size="small"
+          pagination={{ pageSize: 8 }}
+          onRow={(record) => ({
+            onClick: () => selectProducto(record),
+            style: { cursor: 'pointer' },
+          })}
+        />
+      </Modal>
+
+      <Modal
+        title={editingCliente ? 'Editar Cliente' : 'Nuevo Cliente'}
+        open={clienteModalVisible}
+        onCancel={() => setClienteModalVisible(false)}
+        onOk={async () => {
+          try {
+            const values = await clienteForm.validateFields()
+            if (editingCliente) {
+              await updateCliente(editingCliente.id, values)
+              message.success('Cliente actualizado')
+            } else {
+              await createCliente(values)
+              message.success('Cliente creado')
+            }
+            setClienteModalVisible(false)
+            loadClientes()
+          } catch {
+            message.error('Error al guardar cliente')
+          }
+        }}
+        width={500}
+      >
+        <Form form={clienteForm} layout="vertical">
+          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
+            <Input />
           </Form.Item>
-          <Form.Item name="estado_id" label="Estado ID" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
+          <Form.Item name="nit" label="NIT" rules={[{ required: true }]}>
+            <Input />
           </Form.Item>
-          <Form.Item name="impuesto" label="Impuesto %" initialValue={0}>
-            <InputNumber min={0} max={100} style={{ width: '100%' }} />
+          <Form.Item name="celular" label="Celular" rules={[{ required: true }]}>
+            <Input />
           </Form.Item>
-          <Form.Item name="descuento" label="Descuento %" initialValue={0}>
-            <InputNumber min={0} max={100} style={{ width: '100%' }} />
+          <Form.Item name="direccion" label="Dirección" rules={[{ required: true }]}>
+            <Input />
           </Form.Item>
         </Form>
+        <Table
+          columns={clienteColumns}
+          dataSource={clientes}
+          rowKey="id"
+          size="small"
+          pagination={{ pageSize: 5 }}
+        />
+      </Modal>
+
+      <Modal
+        title={editingComprobante ? 'Editar Comprobante' : 'Nuevo Comprobante'}
+        open={comprobanteModalVisible}
+        onCancel={() => setComprobanteModalVisible(false)}
+        onOk={async () => {
+          try {
+            const values = await comprobanteForm.validateFields()
+            if (editingComprobante) {
+              await comprobanteService.update(editingComprobante.id, values)
+              message.success('Comprobante actualizado')
+            } else {
+              await comprobanteService.create(values)
+              message.success('Comprobante creado')
+            }
+            setComprobanteModalVisible(false)
+            loadComprobantes()
+          } catch {
+            message.error('Error al guardar comprobante')
+          }
+        }}
+      >
+        <Form form={comprobanteForm} layout="vertical">
+          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="numero" label="Número inicial" rules={[{ required: true }]}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+        <Table
+          columns={comprobanteSubColumns}
+          dataSource={comprobantes}
+          rowKey="id"
+          size="small"
+          pagination={{ pageSize: 5 }}
+        />
+      </Modal>
+
+      <Modal
+        title={editingEstado ? 'Editar Estado' : 'Nuevo Estado'}
+        open={estadoModalVisible}
+        onCancel={() => setEstadoModalVisible(false)}
+        onOk={async () => {
+          try {
+            const values = await estadoForm.validateFields()
+            if (editingEstado) {
+              await estadoService.update(editingEstado.id, values)
+              message.success('Estado actualizado')
+            } else {
+              await estadoService.create(values)
+              message.success('Estado creado')
+            }
+            setEstadoModalVisible(false)
+            loadEstados()
+          } catch {
+            message.error('Error al guardar estado')
+          }
+        }}
+      >
+        <Form form={estadoForm} layout="vertical">
+          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+        </Form>
+        <Table
+          columns={estadoSubColumns}
+          dataSource={estados}
+          rowKey="id"
+          size="small"
+          pagination={{ pageSize: 5 }}
+        />
       </Modal>
     </div>
   )

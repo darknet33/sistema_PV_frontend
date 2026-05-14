@@ -570,12 +570,17 @@ export default function ComprasPage() {
               />
             </Form.Item>
             <Form.Item name="num_comprobante" label="N° Comprobante" style={{ width: 200, marginBottom: 12 }}>
-              <Input
-                placeholder={autoNum ? 'Automático' : 'Ingrese número'}
-                value={editingCompra ? undefined : (autoNum ? (numComprobanteAuto || undefined) : undefined)}
-                disabled={editingCompra !== null || autoNum}
-                addonAfter={!editingCompra ? <Switch checkedChildren="A" unCheckedChildren="M" checked={autoNum} onChange={(v) => { setAutoNum(v); if (v) setNumComprobanteAuto('') }} /> : undefined}
-              />
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  placeholder={autoNum ? 'Automático' : 'Ingrese número'}
+                  value={editingCompra ? undefined : (autoNum ? (numComprobanteAuto || undefined) : undefined)}
+                  disabled={editingCompra !== null || autoNum}
+                  style={{ width: '100%' }}
+                />
+                {!editingCompra && (
+                  <Switch checkedChildren="A" unCheckedChildren="M" checked={autoNum} onChange={(v) => { setAutoNum(v); if (v) setNumComprobanteAuto('') }} />
+                )}
+              </Space.Compact>
             </Form.Item>
           </div>
 
