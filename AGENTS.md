@@ -1,0 +1,131 @@
+# AGENTS.md — Contexto para Asistentes IA (Frontend)
+
+## Project Overview
+
+**Sistema Rhino** v3.0 — Frontend SPA para sistema de inventario POS. React + TypeScript + Ant Design.
+
+### Stack
+- React 18, TypeScript, Vite 5
+- Ant Design 5
+- Zustand (state management)
+- Axios (HTTP con JWT interceptor)
+- Day.js (fechas)
+
+---
+
+## Project Structure
+
+```
+sistema_PV_frontend/
+├── src/
+│   ├── pages/             # 9 page modules
+│   ├── services/          # 13 API service modules
+│   ├── types/             # TypeScript interfaces
+│   ├── stores/            # Zustand stores
+│   └── App.tsx            # Router + auth guard
+├── public/
+├── productos.xlsx         # Plantilla Excel para importar
+├── package.json
+└── vite.config.ts         # Proxy /api -> localhost:8000
+```
+
+---
+
+## Architecture Conventions
+
+### Data flow
+```
+pages/ (views) -> services/ (Axios API calls) -> types/ (interfaces)
+```
+
+### Naming
+- **Pages**: PascalCase + `Page` suffix (`ComprasPage.tsx`)
+- **Services**: camelCase (`compraService.ts`)
+- **Types**: camelCase (`compra.ts`)
+
+---
+
+## Key Patterns
+
+### Auth
+- JWT stored in `localStorage` as `token`
+- `services/api.ts` interceptor attaches `Authorization: Bearer <token>` to all requests
+- 401 response auto-redirects to `/login`
+- `useAuthStore` (Zustand) manages auth state + module permissions
+- Route protection via `hasAccess(path)` in `App.tsx`
+
+### Compose Pattern (Compra/Venta)
+- Master form + inline detail rows (productos)
+- Each detail row: Producto (modal selector), Cantidad, Costo/Precio
+- Total calculated in real-time via `useMemo`
+- `num_comprobante` auto-generated (8-digit zero-padded) or manual via Switch (`autoNum` state)
+- **Venta-specific**: each detail row includes `utilidad` field; header includes `impuesto%` and `descuento%`
+- **Venta total**: `subtotal + (subtotal * impuesto/100) - (subtotal * descuento/100)`
+- **Venta N° Comprobante**: defaults to Automático (A) mode via Switch
+
+### Sub-modal CRUD Pattern
+Used in ComprasPage (Proveedores, Comprobantes, Estados) and VentasPage (Clientes, Comprobantes, Estados):
+1. Select with `popupRender` containing "Gestionar" button
+2. Modal shows table of all records + inline create/edit form
+3. Uses `useMemo` for `{ value, label }` options
+4. Popconfirm for delete with try/catch showing backend error: `error.response?.data?.detail`
+
+### Filters
+- `Tag.CheckableTag` for enum/estado filters
+- `Input.Search` for text search (proveedor, cliente)
+- `DatePicker.RangePicker` for date range
+- Filtered list via `useMemo` with `startOf('day')` / `endOf('day')`
+
+### Anular / Delete
+- **Anular button** (`CloseCircleOutlined`, yellow): visible when `estado_nombre !== 'ANULADO'`
+- **Delete button** (`DeleteOutlined`, red danger): visible only when `estado_nombre === 'ANULADO'`
+- Both wrapped in `Popconfirm`
+
+### Product Selector Modal
+- Table with columns: Código, Producto (Categoría - Descripción), Marca, Precio, Stock
+- Search filters by código, descripción, marca, categoría
+- Only shows active products (`p.activo !== false`)
+- `onRow` click handler to select and populate detalle row
+
+### Expanded Table Rows
+- `expandable={{ expandedRowRender, rowExpandable }}` on main table
+- Shows sub-table with detailed columns (Código, Producto, Cantidad, Precio/Costo, Subtotal)
+
+### PDF Download
+- Service function fetches blob, creates object URL, triggers download via hidden `<a>` link
+- Same pattern for individual PDF and range report PDF
+
+---
+
+## Critical Implementation Details
+
+- **Port**: Frontend on 3000, Vite proxies `/api` → `localhost:8000`
+- **API URL**: `/api` (relative, proxied by Vite via `vite.config.ts`)
+- **Currency**: Bs. (Bolivianos), NOT S/.
+- **Decimal handling**: Backend sends Decimal as string; wrap with `Number(val || 0)` to avoid `.toFixed is not a function`
+- **Date handling**: Day.js throughout; `startOf('day')` / `endOf('day')` for range filter comparisons
+- **Vite stale cache**: Delete `node_modules/.vite` if puzzling errors appear
+- **User ID**: Hardcoded as `1` in create endpoints (matching backend)
+- **Auto/Manual N° Comprobante**: Switch in create form with `checkedChildren="A"` / `unCheckedChildren="M"`; `Space.Compact` wrapper (not deprecated `addonAfter`)
+- **Edit mode**: Cliente/Proveedor, Comprobante, and N° Comprobante are readonly; `autoNum` forced to false
+- **Product import**: Use `productos.xlsx` (in root) as template for `/api/productos/import-xlsx`
+- **Deprecated Ant props**: Use `variant="borderless"` instead of `bordered={false}`; use `Space.Compact` instead of `addonAfter` on Input
+
+---
+
+## State of Development
+
+### Completed Pages
+- Login, Dashboard (with sidebar menu)
+- Productos (CRUD + Excel import/export + search by code)
+- Proveedores (CRUD + soft-delete)
+- Clientes (CRUD)
+- Compras (CRUD + inline detalles + sub-modal CRUD + filters + anular + PDF)
+- Ventas (CRUD + inline detalles + sub-modal CRUD + filters + anular + PDF + impuesto/descuento)
+- Reportes
+- Configuración (usuarios, roles, módulos, categorías, comprobantes, estados)
+
+### Common Tasks
+- Adding new page: Create types → service → page component → register route in `App.tsx`
+- Adding filters: Tag.CheckableTag + Input.Search + DatePicker.RangePicker with useMemo filtering
+- Error fix: Check Vite cache, Decimal serialization, import paths, TypeScript strict mode

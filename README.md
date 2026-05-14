@@ -1,57 +1,79 @@
-# Sistema RHINO - Frontend (Vite + React + TypeScript)
+# Sistema Rhino v3.0 — Frontend
 
-Interfaz de usuario moderna para el sistema de inventario RHINO 3.0.
+SPA para sistema de inventario POS.
 
-## Características
-- **React 18** con TypeScript
-- **Ant Design 5** para UI components
-- **Vite** para desarrollo rápido
-- **Zustand** para manejo de estado
-- **React Router 6** para navegación
-- **Axios** para consumo de API
-- **React Hook Form** para formularios
-- **TanStack Table** para tablas
-- **Day.js** para manejo de fechas
+## Stack
+
+| Capa | Tecnología |
+|------|-----------|
+| Framework | React 18 |
+| Lenguaje | TypeScript |
+| Build | Vite 5 |
+| UI | Ant Design 5 |
+| Estado | Zustand |
+| HTTP | Axios |
+| Fechas | Day.js |
+
+## Requisitos
+
+- Node.js 18+
 
 ## Instalación
 
 ```bash
-cd frontend
+cd sistema_PV_frontend
 npm install
 ```
 
-## Desarrollo
+## Ejecución
 
 ```bash
 npm run dev
 ```
 
-La aplicación se ejecutará en `http://localhost:3000` con proxy al backend en `http://localhost:8000`.
+La aplicación corre en `http://localhost:3000` con proxy automático al backend en `localhost:8000`.
 
-## Build
-
-```bash
-npm run build
-```
+---
 
 ## Estructura
+
 ```
-src/
-├── components/     # Componentes reutilizables
-├── pages/         # Páginas (Login, Dashboard, Productos, etc.)
-├── services/      # API calls (axios)
-├── types/         # TypeScript interfaces
-├── stores/        # Zustand stores
-├── hooks/         # Custom hooks
-└── context/       # React context
+sistema_PV_frontend/
+├── src/
+│   ├── pages/             # Páginas (Login, Dashboard, etc.)
+│   ├── services/          # Llamadas API (Axios)
+│   ├── types/             # Interfaces TypeScript
+│   ├── stores/            # Estado global (Zustand)
+│   └── App.tsx            # Router + auth guard
+├── productos.xlsx         # Plantilla para importar productos
+├── package.json
+└── vite.config.ts
 ```
 
-## Páginas Implementadas
-- Login con JWT
-- Dashboard con menú lateral
-- Gestión de Productos (CRUD)
-- Gestión de Compras (CRUD)
-- Gestión de Ventas (CRUD)
-- Gestión de Clientes (CRUD)
-- Gestión de Proveedores (CRUD)
-- Reportes (Kardex, Ventas, Compras PDF)
+---
+
+## Páginas
+
+| Ruta | Componente | Descripción |
+|------|-----------|-------------|
+| `/login` | LoginPage | Inicio de sesión |
+| `/` | DashboardPage | Layout con menú |
+| `/productos` | ProductosPage | CRUD + Excel import/export |
+| `/compras` | ComprasPage | CRUD + Anular + PDF |
+| `/ventas` | VentasPage | CRUD + Anular + PDF + impuesto/descuento |
+| `/clientes` | ClientesPage | CRUD |
+| `/proveedores` | ProveedoresPage | CRUD + soft-delete |
+| `/reportes` | ReportesPage | Reportes PDF |
+| `/configuracion/*` | ConfiguracionesPage | Sub-módulos |
+
+---
+
+## Convenciones
+
+- **Moneda**: Bs. (Bolivianos), NO S/.
+- **Decimales**: Usar `Number(val || 0)` para evitar errores de `.toFixed`
+- **Fechas**: Day.js; `startOf('day')` / `endOf('day')` para filtros por rango
+- **N° Comprobante**: Switch Auto/Manual; por defecto Automático en Ventas
+- **Anular**: Botón amarillo si no está anulado; eliminar solo si anulado
+- **Cache**: Si hay errores extraños, eliminar `node_modules/.vite`
+- **Productos.xlsx**: Plantilla base para importación de productos
