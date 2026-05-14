@@ -9,6 +9,7 @@ export interface CompraDetalleResponse {
   producto_id: number
   producto_nombre: string
   producto_codigo: string
+  producto_categoria: string
   cantidad: number
   costo: number
 }

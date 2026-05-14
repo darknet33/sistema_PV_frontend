@@ -25,9 +25,12 @@ export const deleteCompra = async (id: number): Promise<void> => {
   await api.delete(`/compras/${id}`)
 }
 
-export const downloadCompraReport = async (fechaInicio: string, fechaFin: string): Promise<void> => {
+export const downloadCompraReport = async (fechaInicio: string, fechaFin: string, proveedorText?: string, estadoId?: number): Promise<void> => {
+  const params: any = { fecha_inicio: fechaInicio, fecha_fin: fechaFin }
+  if (proveedorText) params.proveedor_text = proveedorText
+  if (estadoId) params.estado_id = estadoId
   const response = await api.get('/reportes/compras/pdf', {
-    params: { fecha_inicio: fechaInicio, fecha_fin: fechaFin },
+    params,
     responseType: 'blob',
   })
   const url = window.URL.createObjectURL(new Blob([response.data]))

@@ -63,7 +63,7 @@ export default function ComprasPage() {
   const [productoSearchText, setProductoSearchText] = useState('')
 
   const proveedorOptions = useMemo(() =>
-    proveedores.map((p) => ({ value: p.id, label: p.nombre })),
+    proveedores.filter((p) => p.activo !== false).map((p) => ({ value: p.id, label: p.nombre })),
     [proveedores]
   )
 
@@ -83,17 +83,23 @@ export default function ComprasPage() {
     return map
   }, [categorias])
 
+  const productosActivos = useMemo(() =>
+    productos.filter((p) => p.activo !== false),
+    [productos]
+  )
+
   const filteredProductos = useMemo(() => {
-    if (!productoSearchText) return productos
+    const base = productosActivos
+    if (!productoSearchText) return base
     const q = productoSearchText.toLowerCase()
-    return productos.filter((p) => {
+    return base.filter((p) => {
       const catNombre = catMap.get(p.categoria_id) || ''
       return p.codigo.toLowerCase().includes(q) ||
         p.descripcion.toLowerCase().includes(q) ||
         p.marca.toLowerCase().includes(q) ||
         catNombre.toLowerCase().includes(q)
     })
-  }, [productos, productoSearchText, catMap])
+  }, [productosActivos, productoSearchText, catMap])
 
   const loadCompras = useCallback(async () => {
     setLoading(true)
@@ -208,7 +214,7 @@ export default function ComprasPage() {
         producto_id: d.producto_id,
         producto_nombre: d.producto_nombre,
         producto_codigo: d.producto_codigo,
-        producto_categoria: '',
+        producto_categoria: d.producto_categoria || '',
         cantidad: d.cantidad,
         costo: Number(d.costo),
       })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }]
@@ -314,7 +320,7 @@ export default function ComprasPage() {
     try {
       const inicio = filterFecha?.[0]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().startOf('month').format('YYYY-MM-DDTHH:mm:ss')
       const fin = filterFecha?.[1]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().format('YYYY-MM-DDTHH:mm:ss')
-      await downloadCompraReport(inicio, fin)
+      await downloadCompraReport(inicio, fin, searchProveedorText || undefined, filterEstado)
       message.success('Reporte descargado')
     } catch {
       message.error('Error al descargar reporte')
@@ -352,10 +358,11 @@ export default function ComprasPage() {
 
   const expandedRowRender = (record: Compra) => {
     const detColumns: ColumnsType<any> = [
-      { title: 'Producto', dataIndex: 'producto_nombre', key: 'producto_nombre' },
-      { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad' },
-      { title: 'Costo', dataIndex: 'costo', key: 'costo', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
-      { title: 'Subtotal', key: 'subtotal', render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.costo || 0)).toFixed(2)}` },
+      { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 100 },
+      { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
+      { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', width: 80 },
+      { title: 'Costo', dataIndex: 'costo', key: 'costo', width: 100, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+      { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.costo || 0)).toFixed(2)}` },
     ]
     return (
       <Table
@@ -391,9 +398,9 @@ export default function ComprasPage() {
       render: (_: unknown, record: Proveedor) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingProveedor(record); proveedorForm.setFieldsValue(record); setProveedorModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar proveedor?" onConfirm={async () => { await deleteProveedor(record.id); message.success('Proveedor eliminado'); loadProveedores() }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+            <Popconfirm title="¿Eliminar proveedor?" onConfirm={async () => { try { await deleteProveedor(record.id); message.success('Proveedor eliminado'); loadProveedores() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
         </Space>
       ),
     },
@@ -408,7 +415,7 @@ export default function ComprasPage() {
       render: (_: unknown, record: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingComprobante(record); comprobanteForm.setFieldsValue(record); setComprobanteModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar comprobante?" onConfirm={async () => { await comprobanteService.delete(record.id); message.success('Comprobante eliminado'); loadComprobantes() }}>
+          <Popconfirm title="¿Eliminar comprobante?" onConfirm={async () => { try { await comprobanteService.delete(record.id); message.success('Comprobante eliminado'); loadComprobantes() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -424,7 +431,7 @@ export default function ComprasPage() {
       render: (_: unknown, record: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingEstado(record); estadoForm.setFieldsValue(record); setEstadoModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar estado?" onConfirm={async () => { await estadoService.delete(record.id); message.success('Estado eliminado'); loadEstados() }}>
+          <Popconfirm title="¿Eliminar estado?" onConfirm={async () => { try { await estadoService.delete(record.id); message.success('Estado eliminado'); loadEstados() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>

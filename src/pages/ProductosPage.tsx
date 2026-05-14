@@ -98,8 +98,8 @@ export default function ProductosPage() {
       await deleteProducto(id)
       message.success('Producto eliminado')
       loadProductos()
-    } catch (error) {
-      message.error('Error al eliminar')
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al eliminar')
     }
   }
 

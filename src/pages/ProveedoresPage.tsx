@@ -41,11 +41,11 @@ export default function ProveedoresPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      await deleteProveedor(id)
+      const result = await deleteProveedor(id)
       message.success('Proveedor eliminado')
       loadProveedores()
-    } catch (error) {
-      message.error('Error al eliminar')
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al eliminar')
     }
   }
 
