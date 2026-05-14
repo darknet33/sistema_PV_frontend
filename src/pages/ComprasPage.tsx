@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Compra, CompraCreate } from '../types/compra'
-import { getCompras, createCompra, updateCompra, deleteCompra, downloadCompraReport, downloadCompraPdf } from '../services/compraService'
+import { getCompras, createCompra, updateCompra, deleteCompra, anularCompra, downloadCompraReport, downloadCompraPdf } from '../services/compraService'
 import { getProveedores, createProveedor, updateProveedor, deleteProveedor } from '../services/proveedorService'
 import comprobanteService from '../services/comprobanteService'
 import { getProductos } from '../services/productoService'
@@ -267,13 +267,23 @@ export default function ComprasPage() {
     }
   }
 
+  const handleAnular = async (id: number) => {
+    try {
+      await anularCompra(id)
+      message.success('Compra anulada')
+      loadCompras()
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al anular')
+    }
+  }
+
   const handleDelete = async (id: number) => {
     try {
       await deleteCompra(id)
       message.success('Compra eliminada')
       loadCompras()
-    } catch {
-      message.error('Error al eliminar')
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al eliminar')
     }
   }
 
@@ -349,13 +359,19 @@ export default function ComprasPage() {
     { title: 'Estado', dataIndex: 'estado_nombre', key: 'estado_nombre', render: (val: string) => <Tag>{val}</Tag> },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     {
-      title: 'Acciones', key: 'acciones', width: 160, render: (_, record) => (
+      title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
         <Space>
           <Button icon={<EditOutlined />} size="small" onClick={() => openEditModal(record)} />
           <Button icon={<PrinterOutlined />} size="small" onClick={() => handlePrintPdf(record.id)} />
-          <Popconfirm title="¿Eliminar compra?" onConfirm={() => handleDelete(record.id)}>
-            <Button icon={<DeleteOutlined />} size="small" danger />
-          </Popconfirm>
+          {record.estado_nombre !== 'ANULADO' ? (
+            <Popconfirm title="¿Anular compra?" onConfirm={() => handleAnular(record.id)}>
+              <Button icon={<CloseCircleOutlined />} size="small" style={{ color: '#faad14' }} />
+            </Popconfirm>
+          ) : (
+            <Popconfirm title="¿Eliminar compra?" onConfirm={() => handleDelete(record.id)}>
+              <Button icon={<DeleteOutlined />} size="small" danger />
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

@@ -25,6 +25,11 @@ export const deleteCompra = async (id: number): Promise<void> => {
   await api.delete(`/compras/${id}`)
 }
 
+export const anularCompra = async (id: number): Promise<Compra> => {
+  const response = await api.put<Compra>(`/compras/${id}/anular`)
+  return response.data
+}
+
 export const downloadCompraReport = async (fechaInicio: string, fechaFin: string, proveedorText?: string, estadoId?: number): Promise<void> => {
   const params: any = { fecha_inicio: fechaInicio, fecha_fin: fechaFin }
   if (proveedorText) params.proveedor_text = proveedorText
