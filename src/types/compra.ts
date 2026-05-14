@@ -21,6 +21,7 @@ export interface CompraCreate {
   num_comprobante?: string
   estado_id: number
   detalles: CompraDetalleCreate[]
+  automatico?: boolean
 }
 
 export interface CompraUpdate {

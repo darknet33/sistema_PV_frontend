@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -39,6 +39,7 @@ export default function ComprasPage() {
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
   const [numComprobanteAuto, setNumComprobanteAuto] = useState('')
+  const [autoNum, setAutoNum] = useState(true)
 
   const [filterFecha, setFilterFecha] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
   const [searchProveedorText, setSearchProveedorText] = useState('')
@@ -194,12 +195,14 @@ export default function ComprasPage() {
     setEditingCompra(null)
     setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }])
     setNumComprobanteAuto('')
+    setAutoNum(true)
     form.resetFields()
     setModalVisible(true)
   }
 
   const openEditModal = (compra: Compra) => {
     setEditingCompra(compra)
+    setAutoNum(false)
     form.setFieldsValue({
       fecha: dayjs(compra.fecha),
       proveedor_id: compra.proveedor_id,
@@ -236,6 +239,8 @@ export default function ComprasPage() {
         proveedor_id: values.proveedor_id,
         comprobante_id: values.comprobante_id,
         estado_id: values.estado_id,
+        num_comprobante: autoNum ? undefined : (values.num_comprobante || ''),
+        automatico: autoNum,
         detalles: validDetalles.map((d) => ({
           producto_id: d.producto_id!,
           cantidad: d.cantidad,
@@ -303,7 +308,7 @@ export default function ComprasPage() {
   }
 
   const updateNumComprobanteAuto = (comprobanteId: number | null) => {
-    if (!comprobanteId || editingCompra) return
+    if (!comprobanteId || editingCompra || !autoNum) return
     const comp = comprobantes.find((c) => c.id === comprobanteId)
     if (comp) {
       setNumComprobanteAuto(String(comp.numero).padStart(8, '0'))
@@ -510,13 +515,14 @@ export default function ComprasPage() {
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
 
-          <Space style={{ width: '100%' }} size="large" align="start">
-            <Form.Item name="proveedor_id" label="Proveedor" rules={[{ required: true }]} style={{ width: 280 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <Form.Item name="proveedor_id" label="Proveedor" rules={[{ required: true }]} style={{ width: 220, marginBottom: 12 }}>
               <Select
                 showSearch
                 placeholder="Seleccione un proveedor"
                 filterOption={(input, option) => (option?.label as string || '').toLowerCase().includes(input.toLowerCase())}
                 options={proveedorOptions}
+                disabled={editingCompra !== null}
                 popupRender={(menu) => (
                   <>
                     {menu}
@@ -529,10 +535,11 @@ export default function ComprasPage() {
                 )}
               />
             </Form.Item>
-            <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} style={{ width: 180 }}>
+            <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} style={{ width: 150, marginBottom: 12 }}>
               <Select
                 placeholder="Seleccione un comprobante"
                 options={comprobanteOptions}
+                disabled={editingCompra !== null}
                 onChange={(val) => updateNumComprobanteAuto(val)}
                 popupRender={(menu) => (
                   <>
@@ -546,14 +553,15 @@ export default function ComprasPage() {
                 )}
               />
             </Form.Item>
-            <Form.Item name="num_comprobante" label="N° Comprobante" style={{ width: 150 }}>
+            <Form.Item name="num_comprobante" label="N° Comprobante" style={{ width: 200, marginBottom: 12 }}>
               <Input
-                placeholder="Automático"
-                value={editingCompra ? undefined : (numComprobanteAuto || undefined)}
-                disabled={!editingCompra}
+                placeholder={autoNum ? 'Automático' : 'Ingrese número'}
+                value={editingCompra ? undefined : (autoNum ? (numComprobanteAuto || undefined) : undefined)}
+                disabled={editingCompra !== null || autoNum}
+                addonAfter={!editingCompra ? <Switch checkedChildren="A" unCheckedChildren="M" checked={autoNum} onChange={(v) => { setAutoNum(v); if (v) setNumComprobanteAuto('') }} /> : undefined}
               />
             </Form.Item>
-          </Space>
+          </div>
 
           <Form.Item name="estado_id" label="Estado" rules={[{ required: true }]}>
             <Select
