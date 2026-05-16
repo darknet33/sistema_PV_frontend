@@ -75,5 +75,7 @@ sistema_PV_frontend/
 - **Fechas**: Day.js; `startOf('day')` / `endOf('day')` para filtros por rango
 - **N° Comprobante**: Switch Auto/Manual; por defecto Automático en Ventas
 - **Anular**: Botón amarillo si no está anulado; eliminar solo si anulado
+- **Stock**: En ventas, si la cantidad supera el stock disponible se muestra una advertencia roja; el backend rechaza la operación
+- **Precio Base**: Calculado en producto como `peso === 0 ? costo + utilidad : peso * costo + utilidad`. Columnas en tabla: Costo Bs., Utilidad Bs., Precio Base
 - **Cache**: Si hay errores extraños, eliminar `node_modules/.vite`
-- **Productos.xlsx**: Plantilla base para importación de productos
+- **Productos.xlsx**: Plantilla base para importación (11 columnas: ÏD, Código, Categoría, Descripción, Marca, Costo Bs., Utilidad Bs., Peso Kg, Stock Inicial, Stock Mínimo, Estado)

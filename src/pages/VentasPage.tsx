@@ -14,6 +14,9 @@ import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../services/categoriaService'
 
+const calcularPrecioBase = (costo: number, utilidad: number, peso: number): number =>
+  peso === 0 ? costo + utilidad : peso * costo + utilidad
+
 interface DetalleLine {
   key: string
   producto_id: number | null
@@ -22,7 +25,11 @@ interface DetalleLine {
   producto_categoria: string
   cantidad: number
   precio: number
+  costo: number
   utilidad: number
+  peso: number
+  stock_actual: number
+  precioBase: number
 }
 
 export default function VentasPage() {
@@ -192,16 +199,18 @@ export default function VentasPage() {
     })
   }, [ventas, filterFecha, searchClienteText, filterEstado])
 
-  const openCreateModal = () => {
+  const openCreateModal = async () => {
+    await loadProductos()
     setEditingVenta(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, utilidad: 0 }])
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, peso: 0, stock_actual: 0, precioBase: 0 }])
     setNumComprobanteAuto('')
     setAutoNum(true)
     form.resetFields()
     setModalVisible(true)
   }
 
-  const openEditModal = (venta: Venta) => {
+  const openEditModal = async (venta: Venta) => {
+    await loadProductos()
     setEditingVenta(venta)
     setAutoNum(false)
     form.setFieldsValue({
@@ -215,16 +224,27 @@ export default function VentasPage() {
     })
     setNumComprobanteAuto(venta.num_comprobante)
     setDetalles(
-      venta.detalles?.map((d, i) => ({
-        key: String(i + 1),
-        producto_id: d.producto_id,
-        producto_nombre: d.producto_nombre,
-        producto_codigo: d.producto_codigo,
-        producto_categoria: d.producto_categoria || '',
-        cantidad: d.cantidad,
-        precio: Number(d.precio),
-        utilidad: Number(d.utilidad),
-      })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, utilidad: 0 }]
+      venta.detalles?.map((d, i) => {
+        const p = productos.find(p2 => p2.id === d.producto_id)
+        const costo = Number(p?.precio || 0)
+        const utilidad = Number(d.utilidad || 0)
+        const peso = Number(p?.peso || 0)
+        const precio = peso === 0 ? costo + utilidad : peso * costo + utilidad
+        return {
+          key: String(i + 1),
+          producto_id: d.producto_id,
+          producto_nombre: d.producto_nombre,
+          producto_codigo: d.producto_codigo,
+          producto_categoria: d.producto_categoria || '',
+          cantidad: d.cantidad,
+          precio,
+          costo,
+          utilidad,
+          peso,
+          stock_actual: p ? p.stock_actual : 0,
+          precioBase: calcularPrecioBase(costo, utilidad, peso),
+        }
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, peso: 0, stock_actual: 0, precioBase: 0 }]
     )
     setModalVisible(true)
   }
@@ -295,7 +315,7 @@ export default function VentasPage() {
   }
 
   const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, utilidad: 0 }])
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, peso: 0, stock_actual: 0, precioBase: 0 }])
   }
 
   const removeDetalleRow = (key: string) => {
@@ -310,9 +330,13 @@ export default function VentasPage() {
 
   const selectProducto = (producto: Producto) => {
     if (selectedDetalleKey) {
+      const costo = Number(producto.precio || 0)
+      const utilidad = Number(producto.utilidad || 0)
+      const peso = Number(producto.peso || 0)
+      const precioBase = calcularPrecioBase(costo, utilidad, peso)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
-          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: Number(producto.precio || 0), utilidad: Number(producto.utilidad || 0) }
+          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: precioBase, costo, utilidad, peso, stock_actual: producto.stock_actual, precioBase }
           : d
       ))
     }
@@ -321,7 +345,15 @@ export default function VentasPage() {
   }
 
   const updateDetalle = (key: string, field: keyof DetalleLine, value: any) => {
-    setDetalles((prev) => prev.map((d) => (d.key === key ? { ...d, [field]: value } : d)))
+    setDetalles((prev) => prev.map((d) => {
+      if (d.key !== key) return d
+      const updated = { ...d, [field]: value }
+      if (field === 'utilidad') {
+        const u = Number(value || 0)
+        updated.precio = d.peso === 0 ? d.costo + u : d.peso * d.costo + u
+      }
+      return updated
+    }))
   }
 
   const updateNumComprobanteAuto = (comprobanteId: number | null) => {
@@ -378,6 +410,7 @@ export default function VentasPage() {
     { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Imp.', dataIndex: 'impuesto', key: 'impuesto', render: (val: number) => `${Number(val || 0)}%` },
     { title: 'Desc.', dataIndex: 'descuento', key: 'descuento', render: (val: number) => `${Number(val || 0)}%` },
+    { title: 'Usuario', dataIndex: 'usuario_username', key: 'usuario_username' },
     {
       title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
         <Space>
@@ -417,15 +450,27 @@ export default function VentasPage() {
   }
 
   const productoColumns: ColumnsType<Producto> = [
-    { title: 'Código', dataIndex: 'codigo', key: 'codigo', width: 100 },
     {
       title: 'Producto',
       key: 'producto',
-      render: (_, r) => `${catMap.get(r.categoria_id) || ''} - ${r.descripcion}`,
+      render: (_, r) => (
+        <div>
+          <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
+          <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
+        </div>
+      ),
     },
-    { title: 'Marca', dataIndex: 'marca', key: 'marca', width: 120 },
-    { title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 80 },
+    { title: 'Peso (kg)', dataIndex: 'peso', key: 'peso', width: 80, render: (val: number) => Number(val || 0).toFixed(2) },
+    { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    {
+      title: 'Precio Base', key: 'precio_base', width: 100,
+      render: (_, r) => {
+        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0), Number(r.peso || 0))
+        return `Bs. ${pb.toFixed(2)}`
+      },
+    },
+    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 60 },
   ]
 
   const clienteColumns: ColumnsType<Cliente> = [
@@ -639,7 +684,7 @@ export default function VentasPage() {
 
           {detalles.map((det, index) => (
             <Space key={det.key} style={{ width: '100%', marginBottom: 8 }} align="start">
-              <Form.Item label={index === 0 ? 'Producto' : ''} style={{ width: 220 }}>
+              <Form.Item label={index === 0 ? 'Producto' : ''} style={{ minWidth: 180, maxWidth: 200 }}>
                 <Input.Search
                   placeholder="Buscar producto"
                   value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
@@ -648,25 +693,29 @@ export default function VentasPage() {
                   enterButton={<SearchOutlined />}
                 />
               </Form.Item>
-              <Form.Item label={index === 0 ? 'Cant.' : ''} style={{ width: 80 }}>
+              <Form.Item label={index === 0 ? 'Cant.' : ''} style={{ width: 70 }}>
                 <InputNumber
                   min={1}
                   style={{ width: '100%' }}
                   value={det.cantidad}
                   onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
                 />
+                {det.producto_id && det.cantidad > det.stock_actual && (
+                  <div style={{ color: '#ff4d4f', fontSize: 11, lineHeight: '14px', marginTop: 2 }}>
+                    Stock: {det.stock_actual}
+                  </div>
+                )}
               </Form.Item>
-              <Form.Item label={index === 0 ? 'Precio' : ''} style={{ width: 120 }}>
+              <Form.Item label={index === 0 ? 'Costo Bs.' : ''} style={{ width: 90 }}>
                 <InputNumber
-                  min={0}
-                  step={0.01}
-                  prefix="Bs."
                   style={{ width: '100%' }}
-                  value={det.precio}
-                  onChange={(val) => updateDetalle(det.key, 'precio', val || 0)}
+                  value={det.costo}
+                  disabled
+                  variant="borderless"
+                  prefix="Bs."
                 />
               </Form.Item>
-              <Form.Item label={index === 0 ? 'Utilidad' : ''} style={{ width: 100 }}>
+              <Form.Item label={index === 0 ? 'Utilidad Bs.' : ''} style={{ width: 90 }}>
                 <InputNumber
                   min={0}
                   step={0.01}
@@ -676,7 +725,16 @@ export default function VentasPage() {
                   onChange={(val) => updateDetalle(det.key, 'utilidad', val || 0)}
                 />
               </Form.Item>
-              <Form.Item label={index === 0 ? 'Subtotal' : ''} style={{ width: 100 }}>
+              <Form.Item label={index === 0 ? 'Precio Venta' : ''} style={{ width: 100 }}>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  value={det.precio}
+                  disabled
+                  variant="borderless"
+                  prefix="Bs."
+                />
+              </Form.Item>
+              <Form.Item label={index === 0 ? 'Subtotal' : ''} style={{ width: 90 }}>
                 <InputNumber
                   style={{ width: '100%' }}
                   value={(det.cantidad || 0) * (det.precio || 0)}
@@ -696,13 +754,21 @@ export default function VentasPage() {
             Agregar producto
           </Button>
 
-          <div style={{ textAlign: 'right', fontSize: 16, fontWeight: 'bold' }}>
-            Subtotal: Bs. {subtotalCalculado.toFixed(2)}
-            {(Number(impuestoPct || 0) > 0 || Number(descuentoPct || 0) > 0) && (
-              <span style={{ display: 'block', fontSize: 18, marginTop: 4 }}>
-                Total: Bs. {totalCalculado.toFixed(2)}
-              </span>
+          <div style={{ textAlign: 'right', fontSize: 15, fontWeight: 'bold' }}>
+            <div>Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
+            {Number(impuestoPct || 0) > 0 && (
+              <div style={{ fontWeight: 'normal', fontSize: 14, color: '#1890ff' }}>
+                IVA ({impuestoPct}%): Bs. {(subtotalCalculado * Number(impuestoPct || 0) / 100).toFixed(2)}
+              </div>
             )}
+            {Number(descuentoPct || 0) > 0 && (
+              <div style={{ fontWeight: 'normal', fontSize: 14, color: '#52c41a' }}>
+                Descuento ({descuentoPct}%): -Bs. {(subtotalCalculado * Number(descuentoPct || 0) / 100).toFixed(2)}
+              </div>
+            )}
+            <div style={{ fontSize: 18, marginTop: 4 }}>
+              Total: Bs. {totalCalculado.toFixed(2)}
+            </div>
           </div>
         </Form>
       </Modal>

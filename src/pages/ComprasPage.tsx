@@ -14,6 +14,9 @@ import type { Proveedor } from '../types/proveedor'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../services/categoriaService'
 
+const calcularPrecioBase = (costo: number, utilidad: number, peso: number): number =>
+  peso === 0 ? costo + utilidad : peso * costo + utilidad
+
 interface DetalleLine {
   key: string
   producto_id: number | null
@@ -191,7 +194,8 @@ export default function ComprasPage() {
     })
   }, [compras, filterFecha, searchProveedorText, filterEstado])
 
-  const openCreateModal = () => {
+  const openCreateModal = async () => {
+    await loadProductos()
     setEditingCompra(null)
     setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }])
     setNumComprobanteAuto('')
@@ -200,7 +204,8 @@ export default function ComprasPage() {
     setModalVisible(true)
   }
 
-  const openEditModal = (compra: Compra) => {
+  const openEditModal = async (compra: Compra) => {
+    await loadProductos()
     setEditingCompra(compra)
     setAutoNum(false)
     form.setFieldsValue({
@@ -305,7 +310,7 @@ export default function ComprasPage() {
     if (selectedDetalleKey) {
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
-          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '' }
+          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', costo: Number(producto.precio || 0) }
           : d
       ))
     }
@@ -358,6 +363,7 @@ export default function ComprasPage() {
     { title: 'Comprobante', key: 'comprobante', render: (_, r) => `${r.comprobante_nombre} ${r.num_comprobante || ''}` },
     { title: 'Estado', dataIndex: 'estado_nombre', key: 'estado_nombre', render: (val: string) => <Tag>{val}</Tag> },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Usuario', dataIndex: 'usuario_username', key: 'usuario_username' },
     {
       title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
         <Space>
@@ -397,15 +403,27 @@ export default function ComprasPage() {
   }
 
   const productoColumns: ColumnsType<Producto> = [
-    { title: 'Código', dataIndex: 'codigo', key: 'codigo', width: 100 },
     {
       title: 'Producto',
       key: 'producto',
-      render: (_, r) => `${catMap.get(r.categoria_id) || ''} - ${r.descripcion}`,
+      render: (_, r) => (
+        <div>
+          <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
+          <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
+        </div>
+      ),
     },
-    { title: 'Marca', dataIndex: 'marca', key: 'marca', width: 120 },
-    { title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 80 },
+    { title: 'Peso (kg)', dataIndex: 'peso', key: 'peso', width: 80, render: (val: number) => Number(val || 0).toFixed(2) },
+    { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    {
+      title: 'Precio Base', key: 'precio_base', width: 100,
+      render: (_, r) => {
+        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0), Number(r.peso || 0))
+        return `Bs. ${pb.toFixed(2)}`
+      },
+    },
+    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 60 },
   ]
 
   const proveedorColumns: ColumnsType<Proveedor> = [

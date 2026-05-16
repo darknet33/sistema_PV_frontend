@@ -43,6 +43,7 @@ export interface Venta {
   descuento: number
   activo: boolean
   usuario_id: number
+  usuario_username: string
   fecha_registro: string
   detalles: VentaDetalleResponse[]
 }

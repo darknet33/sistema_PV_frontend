@@ -46,6 +46,7 @@ export interface Compra {
   total: number
   activo: boolean
   usuario_id: number
+  usuario_username: string
   fecha_registro: string
   detalles: CompraDetalleResponse[]
 }

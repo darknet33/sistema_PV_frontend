@@ -1,10 +1,13 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch, Upload } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
 import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo, exportProductos, importProductos, deleteProductosBatch, deleteAllProductos } from '../services/productoService'
 import categoriaService, { Categoria } from '../services/categoriaService'
+
+const calcularPrecioBase = (costo: number, utilidad: number, peso: number): number =>
+  peso === 0 ? costo + utilidad : peso * costo + utilidad
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([])
@@ -24,6 +27,15 @@ export default function ProductosPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 })
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const watchedCosto = Form.useWatch('precio', form)
+  const watchedUtilidad = Form.useWatch('utilidad', form)
+  const watchedPeso = Form.useWatch('peso', form)
+
+  const precioBaseCalculado = useMemo(() =>
+    calcularPrecioBase(Number(watchedCosto || 0), Number(watchedUtilidad || 0), Number(watchedPeso || 0)),
+    [watchedCosto, watchedUtilidad, watchedPeso]
+  )
 
   const filteredProductos = useMemo(() => {
     return productos.filter((p) => {
@@ -232,13 +244,22 @@ export default function ProductosPage() {
     categorias.forEach((c) => catMap.set(c.id, c.nombre))
 
     return [
-      { title: 'Código', dataIndex: 'codigo', key: 'codigo' },
-      { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
-      { title: 'Marca', dataIndex: 'marca', key: 'marca' },
-      { title: 'Categoría', dataIndex: 'categoria_id', key: 'categoria_id', render: (id: number) => catMap.get(id) || `#${id}` },
+      {
+        title: 'Producto',
+        key: 'producto',
+        render: (_, r) => (
+          <div>
+            <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
+            <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
+          </div>
+        ),
+      },
       { title: 'Peso', dataIndex: 'peso', key: 'peso', render: (val) => `${Number(val || 0).toFixed(2)} kg` },
-      { title: 'Precio', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
-      { title: 'Registrado por', dataIndex: 'usuario_nombre', key: 'usuario_nombre' },
+      { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
+      { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
+      { title: 'Precio Base', key: 'precio_base', render: (_, r) =>
+        `Bs. ${calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0), Number(r.peso || 0)).toFixed(2)}` },
+      { title: 'Usuario', dataIndex: 'usuario_nombre', key: 'usuario_nombre' },
       { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', render: (val: number, record: Producto) => {
         const bajo = val < (record.stock_minimo || 0)
         return <Tag color={bajo ? 'red' : 'default'}>{val ?? 0}{bajo ? ' ⚠️' : ''}</Tag>
@@ -367,43 +388,61 @@ export default function ProductosPage() {
           </div>
         )}
         <Form form={form} layout="vertical" onFinish={handleSave}>
-          <Form.Item name="codigo" label="Código" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <Form.Item name="codigo" label="Código" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="marca" label="Marca" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]} style={{ flex: '1 1 200px' }}>
+              <Select
+                placeholder="Seleccione una categoría"
+                options={catSelectOptions}
+                popupRender={(menu) => (
+                  <>
+                    {menu}
+                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => handleOpenCatModal()}>
+                        Gestionar categorías
+                      </Button>
+                    </div>
+                  </>
+                )}
+              />
+            </Form.Item>
+          </div>
           <Form.Item name="descripcion" label="Descripción" rules={[{ required: true }]}>
-            <Input.TextArea />
+            <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item name="marca" label="Marca" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]}>
-            <Select
-              placeholder="Seleccione una categoría"
-              options={catSelectOptions}
-              popupRender={(menu) => (
-                <>
-                  {menu}
-                  <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
-                    <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => handleOpenCatModal()}>
-                      Gestionar categorías
-                    </Button>
-                  </div>
-                </>
-              )}
-            />
-          </Form.Item>
-          <Form.Item name="precio" label="Precio" rules={[{ required: true }]}>
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="peso" label="Peso (kg)">
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="stock_inicial" label="Stock Inicial" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="stock_minimo" label="Stock Mínimo" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <Form.Item name="precio" label="Costo Bs." rules={[{ required: true }]} style={{ flex: '1 1 130px' }}>
+              <InputNumber min={0} step={0.01} prefix="Bs." style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="utilidad" label="Utilidad Bs." initialValue={0} style={{ flex: '1 1 130px' }}>
+              <InputNumber min={0} step={0.01} prefix="Bs." style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="peso" label="Peso (kg)" style={{ flex: '1 1 100px' }}>
+              <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="Precio Base" style={{ flex: '1 1 130px' }}>
+              <InputNumber
+                style={{ width: '100%' }}
+                value={precioBaseCalculado}
+                disabled
+                variant="borderless"
+                prefix="Bs."
+              />
+            </Form.Item>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <Form.Item name="stock_inicial" label="Stock Inicial" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
+              <InputNumber min={0} disabled={editingProducto !== null} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="stock_minimo" label="Stock Mínimo" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          </div>
         </Form>
       </Modal>
 

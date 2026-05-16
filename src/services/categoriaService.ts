@@ -26,6 +26,10 @@ const categoriaService = {
     const { data } = await api.delete(`/categorias/${id}`)
     return data
   },
+  deleteAll: async (): Promise<{ message: string; eliminadas: number; omitidas: string[] }> => {
+    const { data } = await api.delete('/categorias/all')
+    return data
+  },
 }
 
 export default categoriaService

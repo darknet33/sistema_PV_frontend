@@ -14,25 +14,23 @@ import {
   MenuUnfoldOutlined,
   SettingOutlined,
   AppstoreOutlined,
+  UnorderedListOutlined,
+  DollarOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { useAuthStore } from '../stores/authStore'
 
 const { Header, Sider, Content } = Layout
 
-const MODULE_ROUTE_MAP: Record<string, { path: string; icon: React.ReactNode; label: string; parent?: string; parentIcon?: React.ReactNode }> = {
-  Dashboard: { path: '/', icon: <DashboardOutlined />, label: 'Inicio' },
-  Productos: { path: '/productos', icon: <ShoppingCartOutlined />, label: 'Productos' },
-  Categorias: { path: '/configuracion/categorias', icon: <AppstoreOutlined />, label: 'Categorías', parent: 'Configuraciones', parentIcon: <SettingOutlined /> },
-  Compras: { path: '/compras', icon: <ShoppingOutlined />, label: 'Compras' },
-  Ventas: { path: '/ventas', icon: <ShopOutlined />, label: 'Ventas' },
-  Clientes: { path: '/clientes', icon: <TeamOutlined />, label: 'Clientes' },
-  Proveedores: { path: '/proveedores', icon: <ShopOutlined />, label: 'Proveedores' },
-  Reportes: { path: '/reportes', icon: <FileTextOutlined />, label: 'Reportes' },
-  Usuarios: { path: '/configuracion/usuarios', icon: <UserOutlined />, label: 'Usuarios', parent: 'Configuraciones', parentIcon: <SettingOutlined /> },
-  Roles: { path: '/configuracion/roles', icon: <UserOutlined />, label: 'Roles', parent: 'Configuraciones', parentIcon: <SettingOutlined /> },
-  Comprobantes: { path: '/configuracion/comprobantes', icon: <FileTextOutlined />, label: 'Comprobantes', parent: 'Configuraciones', parentIcon: <SettingOutlined /> },
-  Estados: { path: '/configuracion/estados', icon: <SettingOutlined />, label: 'Estados', parent: 'Configuraciones', parentIcon: <SettingOutlined /> },
+type MenuItem = Required<MenuProps>['items'][number]
+
+function getItem(
+  label: React.ReactNode,
+  key: React.Key,
+  icon?: React.ReactNode,
+  children?: MenuItem[],
+): MenuItem {
+  return { key, icon, children, label } as MenuItem
 }
 
 export default function DashboardPage() {
@@ -44,27 +42,50 @@ export default function DashboardPage() {
 
   const menuItems = useMemo(() => {
     const moduloNombres = new Set(modulos.map((m) => m.nombre))
-    const items: MenuProps['items'] = []
-    const hasConfigModules = ['Usuarios', 'Roles', 'Modulos', 'Categorias', 'Comprobantes', 'Estados'].some((m) => moduloNombres.has(m))
+    const hasModule = (name: string) => moduloNombres.has(name)
+    const hasAny = (...names: string[]) => names.some((n) => moduloNombres.has(n))
+    const items: MenuItem[] = []
 
-    for (const moduloNombre of moduloNombres) {
-      const mapping = MODULE_ROUTE_MAP[moduloNombre]
-      if (!mapping) continue
-      if (mapping.parent) continue
-
-      items.push({
-        key: mapping.path,
-        icon: mapping.icon,
-        label: mapping.label,
-      })
+    if (hasModule('Dashboard')) {
+      items.push(getItem('Inicio', '/', <DashboardOutlined />))
     }
 
+    if (hasAny('Productos', 'Categorias')) {
+      const children: MenuItem[] = []
+      if (hasModule('Productos')) children.push(getItem('Lista', '/productos/lista', <UnorderedListOutlined />))
+      if (hasModule('Categorias')) children.push(getItem('Categorías', '/productos/categorias', <AppstoreOutlined />))
+      items.push(getItem('Productos', 'productos-group', <ShoppingCartOutlined />, children))
+    }
+
+    if (hasAny('Compras', 'Proveedores')) {
+      const children: MenuItem[] = []
+      if (hasModule('Compras')) children.push(getItem('Compras', '/entradas/compras', <ShoppingOutlined />))
+      if (hasModule('Proveedores')) children.push(getItem('Proveedores', '/entradas/proveedores', <TeamOutlined />))
+      items.push(getItem('Entradas', 'entradas-group', <ShoppingOutlined />, children))
+    }
+
+    if (hasAny('Ventas', 'Clientes')) {
+      const children: MenuItem[] = []
+      if (hasModule('Ventas')) children.push(getItem('Ventas', '/salidas/ventas', <ShopOutlined />))
+      if (hasModule('Clientes')) children.push(getItem('Clientes', '/salidas/clientes', <TeamOutlined />))
+      items.push(getItem('Salidas', 'salidas-group', <ShopOutlined />, children))
+    }
+
+    items.push(getItem('Gastos', '/gastos', <DollarOutlined />))
+
+    if (hasModule('Reportes')) {
+      items.push(getItem('Reportes', '/reportes', <FileTextOutlined />))
+    }
+
+    const hasConfigModules = ['Usuarios', 'Roles', 'Modulos', 'Comprobantes', 'Estados'].some((m) => hasModule(m))
     if (hasConfigModules) {
-      items.push({
-        key: '/configuracion/usuarios',
-        icon: <SettingOutlined />,
-        label: 'Configuraciones',
-      })
+      const children: MenuItem[] = []
+      if (hasModule('Usuarios')) children.push(getItem('Usuarios', '/configuracion/usuarios', <UserOutlined />))
+      if (hasModule('Roles')) children.push(getItem('Roles', '/configuracion/roles', <TeamOutlined />))
+      if (hasModule('Modulos')) children.push(getItem('Módulos', '/configuracion/modulos', <AppstoreOutlined />))
+      if (hasModule('Comprobantes')) children.push(getItem('Comprobantes', '/configuracion/comprobantes', <FileTextOutlined />))
+      if (hasModule('Estados')) children.push(getItem('Estados', '/configuracion/estados', <SettingOutlined />))
+      items.push(getItem('Configuración', 'config-group', <SettingOutlined />, children))
     }
 
     return items

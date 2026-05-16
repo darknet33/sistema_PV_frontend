@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Popconfirm, message, Spin } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Button, Modal, Form, Input, Popconfirm, message, Spin, Space } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, WarningOutlined } from '@ant-design/icons'
 import categoriaService, { Categoria, CategoriaCreate } from '../../services/categoriaService'
 
 export default function CategoriasPage() {
@@ -66,6 +66,20 @@ export default function CategoriasPage() {
     }
   }
 
+  const handleDeleteAll = async () => {
+    try {
+      const result = await categoriaService.deleteAll()
+      if (result.omitidas.length > 0) {
+        message.warning(`${result.eliminadas} eliminadas, ${result.omitidas.length} omitidas (tienen productos): ${result.omitidas.join(', ')}`)
+      } else {
+        message.success(`${result.eliminadas} categorías eliminadas`)
+      }
+      loadCategorias()
+    } catch {
+      message.error('Error al eliminar categorías')
+    }
+  }
+
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: 'Nombre', dataIndex: 'nombre' },
@@ -87,9 +101,14 @@ export default function CategoriasPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>Gestión de Categorías</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
-          Nueva Categoría
-        </Button>
+        <Space>
+          <Popconfirm title="¿Eliminar todas las categorías sin productos asociados?" onConfirm={handleDeleteAll} okText="Sí, eliminar" cancelText="Cancelar">
+            <Button danger icon={<WarningOutlined />}>Eliminar todas</Button>
+          </Popconfirm>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
+            Nueva Categoría
+          </Button>
+        </Space>
       </div>
       <Spin spinning={loading}>
         <Table columns={columns} dataSource={categorias} rowKey="id" pagination={{ pageSize: 10 }} />

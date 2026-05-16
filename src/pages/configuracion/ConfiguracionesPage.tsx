@@ -21,7 +21,6 @@ const menuItems: MenuItem[] = [
   { key: '/configuracion/usuarios', icon: <UserOutlined />, label: 'Usuarios' },
   { key: '/configuracion/roles', icon: <TeamOutlined />, label: 'Roles' },
   { key: '/configuracion/modulos', icon: <AppstoreOutlined />, label: 'Módulos' },
-  { key: '/configuracion/categorias', icon: <AppstoreOutlined />, label: 'Categorías' },
   { key: '/configuracion/comprobantes', icon: <FileDoneOutlined />, label: 'Comprobantes' },
   { key: '/configuracion/estados', icon: <CheckCircleOutlined />, label: 'Estados' },
 ]

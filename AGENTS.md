@@ -59,9 +59,10 @@ pages/ (views) -> services/ (Axios API calls) -> types/ (interfaces)
 - Each detail row: Producto (modal selector), Cantidad, Costo/Precio
 - Total calculated in real-time via `useMemo`
 - `num_comprobante` auto-generated (8-digit zero-padded) or manual via Switch (`autoNum` state)
-- **Venta-specific**: each detail row includes `utilidad` field; header includes `impuesto%` and `descuento%`
+- **Venta-specific**: each detail row includes `utilidad` field and `stock_actual`; header includes `impuesto%` and `descuento%`
 - **Venta total**: `subtotal + (subtotal * impuesto/100) - (subtotal * descuento/100)`
 - **Venta N° Comprobante**: defaults to Automático (A) mode via Switch
+- **Stock warning**: when `cantidad > stock_actual`, a red "Stock: N" warning appears below the quantity input
 
 ### Sub-modal CRUD Pattern
 Used in ComprasPage (Proveedores, Comprobantes, Estados) and VentasPage (Clientes, Comprobantes, Estados):
@@ -82,10 +83,15 @@ Used in ComprasPage (Proveedores, Comprobantes, Estados) and VentasPage (Cliente
 - Both wrapped in `Popconfirm`
 
 ### Product Selector Modal
-- Table with columns: Código, Producto (Categoría - Descripción), Marca, Precio, Stock
+- Table with columns: Producto (combined: `[Código] Categoría - Descripción` + Marca en gris), Precio, Stock
 - Search filters by código, descripción, marca, categoría
 - Only shows active products (`p.activo !== false`)
 - `onRow` click handler to select and populate detalle row
+
+### Producto Pricing
+- Form fields: **Costo Bs.** (`precio` en BD), **Utilidad Bs.**, **Peso (kg)**
+- **Precio Base** se calcula automáticamente: si peso == 0 → `costo + utilidad`; si peso > 0 → `peso * costo + utilidad`
+- Se muestra como campo disabled en el formulario y como columna calculada en la tabla
 
 ### Expanded Table Rows
 - `expandable={{ expandedRowRender, rowExpandable }}` on main table
@@ -108,7 +114,8 @@ Used in ComprasPage (Proveedores, Comprobantes, Estados) and VentasPage (Cliente
 - **User ID**: Hardcoded as `1` in create endpoints (matching backend)
 - **Auto/Manual N° Comprobante**: Switch in create form with `checkedChildren="A"` / `unCheckedChildren="M"`; `Space.Compact` wrapper (not deprecated `addonAfter`)
 - **Edit mode**: Cliente/Proveedor, Comprobante, and N° Comprobante are readonly; `autoNum` forced to false
-- **Product import**: Use `productos.xlsx` (in root) as template for `/api/productos/import-xlsx`
+- **Product import**: Use `productos.xlsx` (in root) as template for `/api/productos/import-xlsx`. Columnas esperadas: `ÏD`, `Código`, `Categoría`, `Descripción`, `Marca`, `Costo Bs.`, `Utilidad Bs.`, `Peso Kg`, `Stock Inicial`, `Stock Mínimo`, `Estado`. `Costo Bs.` se asigna al campo `precio` en BD.
+- **Usuario**: Productos, Compras y Ventas muestran columna "Usuario" con el `username` de quien registró
 - **Deprecated Ant props**: Use `variant="borderless"` instead of `bordered={false}`; use `Space.Compact` instead of `addonAfter` on Input
 
 ---

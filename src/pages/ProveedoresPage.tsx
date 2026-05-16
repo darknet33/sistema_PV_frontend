@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Table, Button, Modal, Form, Input, Space, Popconfirm, message, Switch } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import type { Proveedor } from '../types/proveedor'
 import { getProveedores, createProveedor, deleteProveedor, updateProveedor, toggleProveedorActivo } from '../services/proveedorService'
 
 export default function ProveedoresPage() {
@@ -41,7 +43,7 @@ export default function ProveedoresPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      const result = await deleteProveedor(id)
+      await deleteProveedor(id)
       message.success('Proveedor eliminado')
       loadProveedores()
     } catch (error: any) {

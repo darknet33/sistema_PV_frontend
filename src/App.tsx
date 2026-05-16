@@ -3,10 +3,12 @@ import { useAuthStore } from './stores/authStore'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ProductosPage from './pages/ProductosPage'
+import CategoriasPage from './pages/productos/CategoriasPage'
 import ComprasPage from './pages/ComprasPage'
+import ProveedoresPage from './pages/ProveedoresPage'
 import VentasPage from './pages/VentasPage'
 import ClientesPage from './pages/ClientesPage'
-import ProveedoresPage from './pages/ProveedoresPage'
+import GastosPage from './pages/GastosPage'
 import ReportesPage from './pages/ReportesPage'
 import ConfiguracionesPage from './pages/configuracion/ConfiguracionesPage'
 import UsuariosPage from './pages/configuracion/UsuariosPage'
@@ -14,20 +16,19 @@ import RolesPage from './pages/configuracion/RolesPage'
 import ModulosPage from './pages/configuracion/ModulosPage'
 import ComprobantesPage from './pages/configuracion/ComprobantesPage'
 import EstadosPage from './pages/configuracion/EstadosPage'
-import CategoriasPage from './pages/configuracion/CategoriasPage'
 
 const MODULE_ROUTE_MAP: Record<string, string> = {
   Dashboard: '/',
-  Productos: '/productos',
-  Compras: '/compras',
-  Ventas: '/ventas',
-  Clientes: '/clientes',
-  Proveedores: '/proveedores',
+  Productos: '/productos/lista',
+  Categorias: '/productos/categorias',
+  Compras: '/entradas/compras',
+  Proveedores: '/entradas/proveedores',
+  Ventas: '/salidas/ventas',
+  Clientes: '/salidas/clientes',
   Reportes: '/reportes',
   Usuarios: '/configuracion/usuarios',
   Roles: '/configuracion/roles',
   Modulos: '/configuracion/modulos',
-  Categorias: '/configuracion/categorias',
   Comprobantes: '/configuracion/comprobantes',
   Estados: '/configuracion/estados',
 }
@@ -53,17 +54,22 @@ function App() {
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} />
       <Route path="/" element={validSession ? <DashboardPage /> : <Navigate to="/login" />}>
-        {hasAccess('/productos') && <Route path="productos" element={<ProductosPage />} />}
-        {hasAccess('/compras') && <Route path="compras" element={<ComprasPage />} />}
-        {hasAccess('/ventas') && <Route path="ventas" element={<VentasPage />} />}
-        {hasAccess('/clientes') && <Route path="clientes" element={<ClientesPage />} />}
-        {hasAccess('/proveedores') && <Route path="proveedores" element={<ProveedoresPage />} />}
+        <Route index element={<Navigate to="/" />} />
+
+        {hasAccess('/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}
+        {hasAccess('/productos/categorias') && <Route path="productos/categorias" element={<CategoriasPage />} />}
+        {hasAccess('/entradas/compras') && <Route path="entradas/compras" element={<ComprasPage />} />}
+        {hasAccess('/entradas/proveedores') && <Route path="entradas/proveedores" element={<ProveedoresPage />} />}
+        {hasAccess('/salidas/ventas') && <Route path="salidas/ventas" element={<VentasPage />} />}
+        {hasAccess('/salidas/clientes') && <Route path="salidas/clientes" element={<ClientesPage />} />}
+
+        <Route path="gastos" element={<GastosPage />} />
         {hasAccess('/reportes') && <Route path="reportes" element={<ReportesPage />} />}
+
         <Route path="configuracion" element={<ConfiguracionesPage />}>
           {hasAccess('/configuracion/usuarios') && <Route path="usuarios" element={<UsuariosPage />} />}
           {hasAccess('/configuracion/roles') && <Route path="roles" element={<RolesPage />} />}
           <Route path="modulos" element={<ModulosPage />} />
-          {hasAccess('/configuracion/categorias') && <Route path="categorias" element={<CategoriasPage />} />}
           {hasAccess('/configuracion/comprobantes') && <Route path="comprobantes" element={<ComprobantesPage />} />}
           {hasAccess('/configuracion/estados') && <Route path="estados" element={<EstadosPage />} />}
         </Route>
