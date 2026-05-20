@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { Button, Table, Popconfirm, Spin, Typography } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Button, Table, Popconfirm, Spin, Typography, Space } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from './CrudModal'
 import type { CrudField } from './CrudModal'
@@ -47,18 +47,13 @@ export default function CrudPage<T extends { id: number }>({
       key: 'acciones',
       width: 120,
       render: (_: unknown, record: T) => (
-        <span>
-          <Button
-            type="link"
-            onClick={() => openModal(record)}
-          >
-            Editar
-          </Button>
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openModal(record)} />
           <Popconfirm title="¿Eliminar?" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" danger>Eliminar</Button>
+            <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
           {extraActions?.(record)}
-        </span>
+        </Space>
       ),
     },
   ]

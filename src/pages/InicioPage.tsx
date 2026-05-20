@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Row, Col, Card, Statistic, Table, Tag, Spin, message } from 'antd'
 import {
   ShoppingCartOutlined,
@@ -22,6 +22,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useAuthStore } from '../stores/authStore'
 import api from '../services/api'
 import './InicioPage.css'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 
 interface DashboardData {
   resumen_hoy: {
@@ -43,12 +44,25 @@ export default function InicioPage() {
   const [loading, setLoading] = useState(true)
   const usuario = useAuthStore((s) => s.usuario)
 
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
+    setLoading(true)
     api.get('/reportes/dashboard')
       .then((res) => setData(res.data))
       .catch(() => message.error('Error al cargar dashboard'))
       .finally(() => setLoading(false))
   }, [])
+
+  const refreshDashboard = useCallback(() => {
+    api.get('/reportes/dashboard')
+      .then((res) => setData(res.data))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    loadDashboard()
+  }, [loadDashboard])
+
+  useRealtimeRefresh('dashboard', refreshDashboard)
 
   const chartData = useMemo(() => {
     if (!data) return []
@@ -167,7 +181,7 @@ export default function InicioPage() {
           },
         ].map((card) => (
           <Col xs={24} sm={12} md={6} key={card.key}>
-            <Card className={`dashboard-card ${card.class}`} bordered={false}>
+            <Card className={`dashboard-card ${card.class}`} variant="borderless">
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <Statistic
                   title={card.title}
@@ -196,7 +210,7 @@ export default function InicioPage() {
         title={<span style={{ fontSize: 16, fontWeight: 600 }}>Ventas vs Compras (últimos 30 días)</span>}
         className="dashboard-chart-card"
         style={{ marginBottom: 16 }}
-        bordered={false}
+        variant="borderless"
       >
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={chartData}>
@@ -238,7 +252,7 @@ export default function InicioPage() {
           <Card
             title={<span style={{ fontSize: 16, fontWeight: 600 }}>Productos con stock bajo</span>}
             className="dashboard-table-card"
-            bordered={false}
+            variant="borderless"
           >
             <Table
               columns={stockColumns}
@@ -254,7 +268,7 @@ export default function InicioPage() {
           <Card
             title={<span style={{ fontSize: 16, fontWeight: 600 }}>Top vendedores (30 días)</span>}
             className="dashboard-table-card"
-            bordered={false}
+            variant="borderless"
           >
             <Table
               columns={vendedorColumns}

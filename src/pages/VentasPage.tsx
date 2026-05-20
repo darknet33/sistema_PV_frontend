@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch } from 'antd'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -180,6 +181,14 @@ export default function VentasPage() {
   }, [loadVentas, loadClientes, loadComprobantes, loadEstados, loadProductos, loadCategorias])
 
   useEffect(() => { loadAllData() }, [loadAllData])
+
+  const refreshVentas = useCallback(() => {
+    loadVentas()
+    loadProductos()
+  }, [loadVentas, loadProductos])
+
+  useRealtimeRefresh('ventas', refreshVentas)
+  useRealtimeRefresh('dashboard', refreshVentas)
 
   const filteredVentas = useMemo(() => {
     return ventas.filter((v) => {
@@ -415,7 +424,7 @@ export default function VentasPage() {
         <Space>
           <Button icon={<EditOutlined />} size="small" onClick={() => openEditModal(record)} />
           <Button icon={<PrinterOutlined />} size="small" onClick={() => handlePrintPdf(record.id)} />
-          {record.estado_nombre !== 'ANULADO' ? (
+          {record.estado_nombre !== 'Anulado' ? (
             <Popconfirm title="¿Anular venta?" onConfirm={() => handleAnular(record.id)}>
               <Button icon={<CloseCircleOutlined />} size="small" style={{ color: '#faad14' }} />
             </Popconfirm>

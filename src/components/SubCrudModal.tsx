@@ -139,7 +139,7 @@ export default function SubCrudModal({
           open={formVisible}
           onCancel={() => setFormVisible(false)}
           onOk={handleSave}
-          destroyOnClose
+          destroyOnHidden={false}
         >
           <Form form={form} layout="vertical">
             {defaultFields.map((f) => (

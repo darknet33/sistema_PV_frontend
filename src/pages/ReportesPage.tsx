@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Card, DatePicker, Button, Space, Row, Col, Table, Modal, Statistic, message, Spin, Tag, Input } from 'antd'
 import { FilePdfOutlined, ReloadOutlined, ShoppingCartOutlined, ShopOutlined, RiseOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -10,6 +10,7 @@ import type { ResumenVenta, ResumenCompra, TopProducto } from '../types/reporte'
 import type { Categoria } from '../types/categoria'
 import api from '../services/api'
 import type { Producto } from '../types/producto'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 
 const { RangePicker } = DatePicker
 
@@ -59,6 +60,24 @@ export default function ReportesPage() {
   }
 
   useEffect(() => { cargarDatos() }, [])
+
+  const refreshReportes = useCallback(() => {
+    if (!fechas[0] || !fechas[1]) return
+    const fi = formatFecha(fechas[0].startOf('day'))
+    const ff = formatFecha(fechas[1].endOf('day'))
+    Promise.all([
+      getResumenVentas(fi, ff),
+      getResumenCompras(fi, ff),
+      getTopProductos(fi, ff),
+    ]).then(([v, c, t]) => {
+      setVentas(v)
+      setCompras(c)
+      setTopProductos(t)
+    }).catch(() => {})
+  }, [fechas])
+
+  useRealtimeRefresh('reportes', refreshReportes)
+  useRealtimeRefresh('dashboard', refreshReportes)
 
   const totalVentas = useMemo(() => ventas.reduce((s, v) => s + Number(v.total || 0), 0), [ventas])
   const totalCompras = useMemo(() => compras.reduce((s, c) => s + Number(c.total || 0), 0), [compras])

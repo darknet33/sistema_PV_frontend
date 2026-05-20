@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -8,6 +8,7 @@ import categoriaService from '../services/categoriaService'
 import type { Categoria } from '../types/categoria'
 
 import { calcularPrecioBase } from '../utils/pricing'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([])
@@ -84,10 +85,22 @@ export default function ProductosPage() {
     }
   }
 
+  const refreshProductos = useCallback(async () => {
+    try {
+      const data = await getProductos()
+      setProductos(Array.isArray(data) ? data : [])
+    } catch {
+      setProductos([])
+    }
+  }, [])
+
   useEffect(() => {
     loadProductos()
     loadCategorias()
   }, [])
+
+  useRealtimeRefresh('productos', refreshProductos)
+  useRealtimeRefresh('dashboard', refreshProductos)
 
   const handleSave = async (values: ProductoCreate) => {
     try {

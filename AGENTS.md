@@ -97,6 +97,19 @@ Used in ComprasPage (Proveedores, Comprobantes, Estados) and VentasPage (Cliente
 - `expandable={{ expandedRowRender, rowExpandable }}` on main table
 - Shows sub-table with detailed columns (Código, Producto, Cantidad, Precio/Costo, Subtotal)
 
+### WebSocket / Real-Time
+- `services/websocket.ts` – `WebSocketClient` class with auto-reconnect every 3s
+- `hooks/useRealtimeRefresh.ts` – React hook `useRealtimeRefresh(room, onRefresh)`
+- Vite proxy config at `vite.config.ts` has `ws: true` for `/api` to proxy WebSocket upgrade
+- URL auto-detected from `window.location` (works with Vite proxy in dev)
+- Rooms: `productos`, `ventas`, `compras`, `dashboard`, `reportes`
+- Pages subscribed:
+  - InicioPage → `dashboard`
+  - ProductosPage → `productos` + `dashboard`
+  - ComprasPage → `compras` + `dashboard`
+  - VentasPage → `ventas` + `dashboard`
+  - ReportesPage → `reportes` + `dashboard`
+
 ### PDF Download
 - Service function fetches blob, creates object URL, triggers download via hidden `<a>` link
 - Same pattern for individual PDF and range report PDF
@@ -117,6 +130,7 @@ Used in ComprasPage (Proveedores, Comprobantes, Estados) and VentasPage (Cliente
 - **Product import**: Use `productos.xlsx` (in root) as template for `/api/productos/import-xlsx`. Columnas esperadas: `ÏD`, `Código`, `Categoría`, `Descripción`, `Marca`, `Costo Bs.`, `Utilidad Bs.`, `Peso Kg`, `Stock Inicial`, `Stock Mínimo`, `Estado`. `Costo Bs.` se asigna al campo `precio` en BD.
 - **Usuario**: Productos, Compras y Ventas muestran columna "Usuario" con el `username` de quien registró
 - **Deprecated Ant props**: Use `variant="borderless"` instead of `bordered={false}`; use `Space.Compact` instead of `addonAfter` on Input
+- **WebSocket**: Vite dev server proxies WS via `ws: true` in proxy config; connect to `/api/ws/{room}` from frontend
 
 ---
 

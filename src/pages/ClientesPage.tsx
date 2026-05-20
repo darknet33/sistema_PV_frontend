@@ -1,4 +1,5 @@
-import { Table, Switch, message } from 'antd'
+import { Table, Switch, Button, Popconfirm, Space, message } from 'antd'
+import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../components/CrudModal'
 import type { CrudField } from '../components/CrudModal'
@@ -48,10 +49,12 @@ export default function ClientesPage() {
       title: 'Acciones',
       width: 120,
       render: (_: unknown, record: Cliente) => (
-        <span>
-          <a onClick={() => openModal(record)}>Editar</a>
-          <a onClick={() => handleDelete(record.id)} style={{ marginLeft: 8, color: 'red' }}>Eliminar</a>
-        </span>
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openModal(record)} />
+          <Popconfirm title="¿Eliminar cliente?" onConfirm={() => handleDelete(record.id)}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ]

@@ -43,7 +43,6 @@ export default function CrudModal({
       onCancel={onCancel}
       onOk={onSubmit}
       confirmLoading={loading}
-      destroyOnClose
       width={width ?? 480}
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>

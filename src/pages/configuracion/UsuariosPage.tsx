@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Table, message } from 'antd'
+import { Table, Button, Popconfirm, Space, message } from 'antd'
+import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
 import type { CrudField } from '../../components/CrudModal'
@@ -58,10 +59,12 @@ export default function UsuariosPage() {
       title: 'Acciones',
       width: 120,
       render: (_: unknown, record: Usuario) => (
-        <span>
-          <a onClick={() => openModal(record)}>Editar</a>
-          <a onClick={() => handleDelete(record.id)} style={{ marginLeft: 8, color: 'red' }}>Eliminar</a>
-        </span>
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openModal(record)} />
+          <Popconfirm title="¿Eliminar usuario?" onConfirm={() => handleDelete(record.id)}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ]

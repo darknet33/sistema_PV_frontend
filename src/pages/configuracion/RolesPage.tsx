@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Modal, Button, Transfer, Spin, Tag, message } from 'antd'
-import { SecurityScanOutlined } from '@ant-design/icons'
+import { Table, Modal, Button, Transfer, Spin, Tag, Popconfirm, Space, message } from 'antd'
+import { SecurityScanOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
 import type { CrudField } from '../../components/CrudModal'
@@ -66,13 +66,15 @@ export default function RolesPage() {
       title: 'Acciones',
       width: 240,
       render: (_: unknown, record: Rol) => (
-        <span>
-          <Button size="small" icon={<SecurityScanOutlined />} onClick={() => handleOpenModales(record)} style={{ marginRight: 8 }}>
+        <Space>
+          <Button size="small" icon={<SecurityScanOutlined />} onClick={() => handleOpenModales(record)}>
             Módulos
           </Button>
-          <a onClick={() => openModal(record)} style={{ marginRight: 8 }}>Editar</a>
-          <a onClick={() => handleDelete(record.id)} style={{ color: 'red' }}>Eliminar</a>
-        </span>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openModal(record)} />
+          <Popconfirm title="¿Eliminar rol?" onConfirm={() => handleDelete(record.id)}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
