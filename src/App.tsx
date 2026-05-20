@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthStore } from './stores/authStore'
+import { useAuthStore, isTokenExpired } from './stores/authStore'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import InicioPage from './pages/InicioPage'
 import ProductosPage from './pages/ProductosPage'
 import CategoriasPage from './pages/productos/CategoriasPage'
 import ComprasPage from './pages/ComprasPage'
@@ -39,8 +41,19 @@ function App() {
   const modulos = useAuthStore((state) => state.modulos)
   const logout = useAuthStore((state) => state.logout)
 
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    if (token && isTokenExpired(token)) {
+      logout()
+    }
+    setChecking(false)
+  }, [])
+
   const hasModules = modulos.length > 0
   const validSession = isAuthenticated && token && hasModules
+
+  if (checking) return null
 
   if (isAuthenticated && (!token || !hasModules)) {
     logout()
@@ -54,7 +67,7 @@ function App() {
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} />
       <Route path="/" element={validSession ? <DashboardPage /> : <Navigate to="/login" />}>
-        <Route index element={<Navigate to="/" />} />
+        <Route index element={<InicioPage />} />
 
         {hasAccess('/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}
         {hasAccess('/productos/categorias') && <Route path="productos/categorias" element={<CategoriasPage />} />}

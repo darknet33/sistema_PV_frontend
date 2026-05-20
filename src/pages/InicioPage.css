@@ -1,0 +1,120 @@
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dashboard-card {
+  animation: fadeInUp 0.5s ease forwards;
+  opacity: 0;
+  border-radius: 12px !important;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: default;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+}
+
+.dashboard-card:nth-child(1) { animation-delay: 0.05s; }
+.dashboard-card:nth-child(2) { animation-delay: 0.1s; }
+.dashboard-card:nth-child(3) { animation-delay: 0.15s; }
+.dashboard-card:nth-child(4) { animation-delay: 0.2s; }
+
+.card-ventas {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+  color: #fff;
+}
+
+.card-ventas .ant-statistic-title,
+.card-ventas .ant-statistic-content,
+.card-ventas .ant-statistic-suffix {
+  color: #fff !important;
+}
+
+.card-compras {
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%) !important;
+  color: #fff;
+}
+
+.card-compras .ant-statistic-title,
+.card-compras .ant-statistic-content,
+.card-compras .ant-statistic-suffix {
+  color: #fff !important;
+}
+
+.card-stock {
+  background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%) !important;
+  color: #fff;
+}
+
+.card-stock .ant-statistic-title,
+.card-stock .ant-statistic-content {
+  color: #fff !important;
+}
+
+.card-vendedor {
+  background: linear-gradient(135deg, #faad14 0%, #d48806 100%) !important;
+  color: #fff;
+}
+
+.card-vendedor .ant-statistic-title,
+.card-vendedor .ant-statistic-content {
+  color: #fff !important;
+}
+
+.icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 22px;
+}
+
+.card-subtext {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
+.dashboard-chart-card {
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  animation: fadeInUp 0.5s ease 0.25s forwards;
+  opacity: 0;
+}
+
+.dashboard-table-card {
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  animation: fadeInUp 0.5s ease 0.35s forwards;
+  opacity: 0;
+}
+
+.dashboard-welcome {
+  margin-bottom: 20px;
+  animation: fadeInUp 0.4s ease forwards;
+}
+
+.dashboard-welcome h2 {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.dashboard-welcome span {
+  color: #888;
+  font-size: 14px;
+}
+
+.stock-alert-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
