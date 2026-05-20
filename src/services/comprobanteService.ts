@@ -1,15 +1,5 @@
 import api from './api'
-
-export interface Comprobante {
-  id: number
-  nombre: string
-  numero: number
-}
-
-export interface ComprobanteCreate {
-  nombre: string
-  numero: number
-}
+import type { Comprobante, ComprobanteCreate } from '../types/configuracion'
 
 const comprobanteService = {
   getAll: async () => {

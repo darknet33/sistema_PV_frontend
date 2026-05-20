@@ -12,10 +12,9 @@ import estadoService from '../services/estadoService'
 import categoriaService from '../services/categoriaService'
 import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
-import type { Categoria } from '../services/categoriaService'
+import type { Categoria } from '../types/categoria'
 
-const calcularPrecioBase = (costo: number, utilidad: number, peso: number): number =>
-  peso === 0 ? costo + utilidad : peso * costo + utilidad
+import { calcularPrecioBase } from '../utils/pricing'
 
 interface DetalleLine {
   key: string

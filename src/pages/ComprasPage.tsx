@@ -9,13 +9,12 @@ import { getProveedores, createProveedor, updateProveedor, deleteProveedor } fro
 import comprobanteService from '../services/comprobanteService'
 import { getProductos } from '../services/productoService'
 import estadoService from '../services/estadoService'
-import categoriaService from '../services/categoriaService'
 import type { Proveedor } from '../types/proveedor'
 import type { Producto } from '../types/producto'
-import type { Categoria } from '../services/categoriaService'
-
-const calcularPrecioBase = (costo: number, utilidad: number, peso: number): number =>
-  peso === 0 ? costo + utilidad : peso * costo + utilidad
+import type { Categoria } from '../types/categoria'
+import categoriaService from '../services/categoriaService'
+import { formatCurrency } from '../utils/format'
+import { calcularPrecioBase } from '../utils/pricing'
 
 interface DetalleLine {
   key: string
@@ -362,7 +361,7 @@ export default function ComprasPage() {
     { title: 'Proveedor', dataIndex: 'proveedor_nombre', key: 'proveedor_nombre' },
     { title: 'Comprobante', key: 'comprobante', render: (_, r) => `${r.comprobante_nombre} ${r.num_comprobante || ''}` },
     { title: 'Estado', dataIndex: 'estado_nombre', key: 'estado_nombre', render: (val: string) => <Tag>{val}</Tag> },
-    { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => formatCurrency(val) },
     { title: 'Usuario', dataIndex: 'usuario_username', key: 'usuario_username' },
     {
       title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (

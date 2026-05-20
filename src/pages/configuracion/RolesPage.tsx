@@ -1,87 +1,31 @@
-import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Popconfirm, message, Typography, Spin, Transfer, Tag } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SecurityScanOutlined } from '@ant-design/icons'
-import rolService, { Rol, RolCreate } from '../../services/rolService'
-import moduloService, { Modulo } from '../../services/moduloService'
+import { useState, useEffect } from 'react'
+import { Table, Modal, Button, Transfer, Spin, Tag, message } from 'antd'
+import { SecurityScanOutlined } from '@ant-design/icons'
+import type { ColumnsType } from 'antd/es/table'
+import CrudModal from '../../components/CrudModal'
+import type { CrudField } from '../../components/CrudModal'
+import { useCrud } from '../../hooks/useCrud'
+import rolService from '../../services/rolService'
+import moduloService from '../../services/moduloService'
+import type { Rol, Modulo } from '../../types/configuracion'
 
-const { Title } = Typography
+const fields: CrudField[] = [
+  { name: 'nombre', label: 'Nombre', required: true },
+]
 
 export default function RolesPage() {
-  const [data, setData] = useState<Rol[]>([])
-  const [modulos, setModulos] = useState<Modulo[]>([])
-  const [loading, setLoading] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingRol, setEditingRol] = useState<Rol | null>(null)
-  const [form] = Form.useForm()
+  const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete } =
+    useCrud<Rol>(rolService)
 
+  const [modulos, setModulos] = useState<Modulo[]>([])
   const [modalesOpen, setModalesOpen] = useState(false)
   const [selectedRol, setSelectedRol] = useState<Rol | null>(null)
   const [targetKeys, setTargetKeys] = useState<string[]>([])
   const [modulosLoading, setModulosLoading] = useState(false)
 
   useEffect(() => {
-    loadData()
-    loadModulos()
+    moduloService.getAll().then(setModulos).catch(() => message.error('Error al cargar módulos'))
   }, [])
-
-  const loadData = async () => {
-    setLoading(true)
-    try {
-      const roles = await rolService.getAll()
-      setData(roles)
-    } catch {
-      message.error('Error al cargar roles')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadModulos = async () => {
-    try {
-      const modulosData = await moduloService.getAll()
-      setModulos(modulosData)
-    } catch {
-      message.error('Error al cargar módulos')
-    }
-  }
-
-  const handleOpenModal = (record?: Rol) => {
-    if (record) {
-      setEditingRol(record)
-      form.setFieldsValue(record)
-    } else {
-      setEditingRol(null)
-      form.resetFields()
-    }
-    setModalOpen(true)
-  }
-
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields()
-      if (editingRol) {
-        await rolService.update(editingRol.id, values as RolCreate)
-        message.success('Rol actualizado')
-      } else {
-        await rolService.create(values as RolCreate)
-        message.success('Rol creado')
-      }
-      setModalOpen(false)
-      loadData()
-    } catch {
-      message.error('Error al guardar rol')
-    }
-  }
-
-  const handleDelete = async (id: number) => {
-    try {
-      await rolService.delete(id)
-      message.success('Rol eliminado')
-      loadData()
-    } catch {
-      message.error('Error al eliminar rol')
-    }
-  }
 
   const handleOpenModales = async (rol: Rol) => {
     setSelectedRol(rol)
@@ -108,25 +52,6 @@ export default function RolesPage() {
     }
   }
 
-  const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    {
-      title: 'Acciones',
-      render: (_: unknown, record: Rol) => (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button size="small" icon={<SecurityScanOutlined />} onClick={() => handleOpenModales(record)}>
-            Módulos
-          </Button>
-          <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenModal(record)} />
-          <Popconfirm title="¿Eliminar rol?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </div>
-      ),
-    },
-  ]
-
   const transferDataSource = modulos.map((m) => ({
     key: String(m.id),
     title: m.nombre,
@@ -134,30 +59,37 @@ export default function RolesPage() {
     disabled: !m.activo,
   }))
 
+  const columns: ColumnsType<Rol> = [
+    { title: 'ID', dataIndex: 'id', width: 60 },
+    { title: 'Nombre', dataIndex: 'nombre' },
+    {
+      title: 'Acciones',
+      width: 240,
+      render: (_: unknown, record: Rol) => (
+        <span>
+          <Button size="small" icon={<SecurityScanOutlined />} onClick={() => handleOpenModales(record)} style={{ marginRight: 8 }}>
+            Módulos
+          </Button>
+          <a onClick={() => openModal(record)} style={{ marginRight: 8 }}>Editar</a>
+          <a onClick={() => handleDelete(record.id)} style={{ color: 'red' }}>Eliminar</a>
+        </span>
+      ),
+    },
+  ]
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>Roles</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
-          Nuevo Rol
-        </Button>
-      </div>
-      <Spin spinning={loading}>
-        <Table columns={columns} dataSource={data} rowKey="id" pagination={{ pageSize: 10 }} />
-      </Spin>
+      <h2 style={{ marginBottom: 16 }}>Roles</h2>
+      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} />
 
-      <Modal
-        title={editingRol ? 'Editar Rol' : 'Nuevo Rol'}
-        open={modalOpen}
-        onOk={handleSubmit}
-        onCancel={() => setModalOpen(false)}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <CrudModal
+        visible={modalVisible}
+        onCancel={closeModal}
+        onSubmit={handleSubmit}
+        form={form}
+        title={editingRecord ? 'Editar Rol' : 'Nuevo Rol'}
+        fields={fields}
+      />
 
       <Modal
         title={`Asignar Módulos - ${selectedRol?.nombre || ''}`}

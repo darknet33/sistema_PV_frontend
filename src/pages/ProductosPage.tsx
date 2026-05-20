@@ -4,10 +4,10 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutli
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
 import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo, exportProductos, importProductos, deleteProductosBatch, deleteAllProductos } from '../services/productoService'
-import categoriaService, { Categoria } from '../services/categoriaService'
+import categoriaService from '../services/categoriaService'
+import type { Categoria } from '../types/categoria'
 
-const calcularPrecioBase = (costo: number, utilidad: number, peso: number): number =>
-  peso === 0 ? costo + utilidad : peso * costo + utilidad
+import { calcularPrecioBase } from '../utils/pricing'
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([])

@@ -1,13 +1,5 @@
 import api from './api'
-
-export interface Categoria {
-  id: number
-  nombre: string
-}
-
-export interface CategoriaCreate {
-  nombre: string
-}
+import type { Categoria, CategoriaCreate } from '../types/categoria'
 
 const categoriaService = {
   getAll: async () => {

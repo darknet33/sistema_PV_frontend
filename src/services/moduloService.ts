@@ -1,15 +1,5 @@
 import api from './api'
-
-export interface Modulo {
-  id: number
-  nombre: string
-  activo: boolean
-}
-
-export interface ModuloCreate {
-  nombre: string
-  activo: boolean
-}
+import type { Modulo, ModuloCreate } from '../types/configuracion'
 
 const moduloService = {
   getAll: async () => {

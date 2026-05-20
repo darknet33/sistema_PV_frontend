@@ -1,119 +1,77 @@
-import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Space, Popconfirm, message, Switch } from 'antd'
+import { Table, Switch, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import CrudModal from '../components/CrudModal'
+import type { CrudField } from '../components/CrudModal'
+import { useCrud } from '../hooks/useCrud'
 import type { Proveedor } from '../types/proveedor'
-import { getProveedores, createProveedor, deleteProveedor, updateProveedor, toggleProveedorActivo } from '../services/proveedorService'
+import { getProveedores, createProveedor, updateProveedor, deleteProveedor, toggleProveedorActivo } from '../services/proveedorService'
+
+const fields: CrudField[] = [
+  { name: 'nombre', label: 'Nombre', required: true },
+  { name: 'nit', label: 'NIT', required: true },
+  { name: 'materiales', label: 'Materiales', required: true },
+  { name: 'contacto', label: 'Contacto', required: true },
+  { name: 'celular_contacto', label: 'Celular', required: true },
+  { name: 'email_contacto', label: 'Email', required: true },
+]
 
 export default function ProveedoresPage() {
-  const [proveedores, setProveedores] = useState<Proveedor[]>([])
-  const [loading, setLoading] = useState(false)
-  const [modalVisible, setModalVisible] = useState(false)
-  const [form] = Form.useForm()
-  const [editingProveedor, setEditingProveedor] = useState<Proveedor | null>(null)
-
-  const loadProveedores = async () => {
-    setLoading(true)
-    try {
-      const data = await getProveedores()
-      setProveedores(data)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { loadProveedores() }, [])
-
-  const handleSave = async (values: Omit<Proveedor, 'id' | 'activo' | 'fecha_registro'>) => {
-    try {
-      if (editingProveedor) {
-        await updateProveedor(editingProveedor.id, values)
-        message.success('Proveedor actualizado')
-      } else {
-        await createProveedor(values)
-        message.success('Proveedor creado')
-      }
-      setModalVisible(false)
-      form.resetFields()
-      loadProveedores()
-    } catch (error) {
-      message.error('Error al guardar')
-    }
-  }
-
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteProveedor(id)
-      message.success('Proveedor eliminado')
-      loadProveedores()
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || 'Error al eliminar')
-    }
-  }
+  const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete, loadData } =
+    useCrud<Proveedor>({
+      getAll: getProveedores,
+      create: createProveedor as any,
+      update: updateProveedor as any,
+      delete: deleteProveedor,
+    })
 
   const handleToggleActivo = async (id: number) => {
     try {
       await toggleProveedorActivo(id)
-      loadProveedores()
-    } catch (error) {
+      loadData()
+    } catch {
       message.error('Error al cambiar estado')
     }
   }
 
   const columns: ColumnsType<Proveedor> = [
-    { title: 'ID', dataIndex: 'id', key: 'id' },
-    { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
-    { title: 'NIT', dataIndex: 'nit', key: 'nit' },
-    { title: 'Materiales', dataIndex: 'materiales', key: 'materiales' },
-    { title: 'Contacto', dataIndex: 'contacto', key: 'contacto' },
-    { title: 'Celular', dataIndex: 'celular_contacto', key: 'celular_contacto' },
-    { title: 'Email', dataIndex: 'email_contacto', key: 'email_contacto' },
-    { title: 'Estado', dataIndex: 'activo', key: 'activo', render: (activo: boolean, record: Proveedor) => (
-      <Switch checked={activo} onChange={() => handleToggleActivo(record.id)} size="small" />
-    )},
+    { title: 'ID', dataIndex: 'id' },
+    { title: 'Nombre', dataIndex: 'nombre' },
+    { title: 'NIT', dataIndex: 'nit' },
+    { title: 'Materiales', dataIndex: 'materiales' },
+    { title: 'Contacto', dataIndex: 'contacto' },
+    { title: 'Celular', dataIndex: 'celular_contacto' },
+    { title: 'Email', dataIndex: 'email_contacto' },
     {
-      title: 'Acciones', key: 'acciones', render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} size="small" onClick={() => { setEditingProveedor(record); form.setFieldsValue(record); setModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar proveedor?" onConfirm={() => handleDelete(record.id)}>
-            <Button icon={<DeleteOutlined />} size="small" danger />
-          </Popconfirm>
-        </Space>
-      )
-    }
+      title: 'Estado',
+      dataIndex: 'activo',
+      render: (activo: boolean, record: Proveedor) => (
+        <Switch checked={activo} onChange={() => handleToggleActivo(record.id)} size="small" />
+      ),
+    },
+    {
+      title: 'Acciones',
+      width: 120,
+      render: (_: unknown, record: Proveedor) => (
+        <span>
+          <a onClick={() => openModal(record)}>Editar</a>
+          <a onClick={() => handleDelete(record.id)} style={{ marginLeft: 8, color: 'red' }}>Eliminar</a>
+        </span>
+      ),
+    },
   ]
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2>Gestión de Proveedores</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProveedor(null); form.resetFields(); setModalVisible(true) }}>
-          Nuevo Proveedor
-        </Button>
-      </div>
-      <Table columns={columns} dataSource={proveedores} loading={loading} rowKey="id" pagination={{ pageSize: 10 }} />
-      <Modal title={editingProveedor ? 'Editar Proveedor' : 'Nuevo Proveedor'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
-        <Form form={form} layout="vertical" onFinish={handleSave}>
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="nit" label="NIT" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="materiales" label="Materiales" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="contacto" label="Contacto" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="celular_contacto" label="Celular" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="email_contacto" label="Email" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <h2 style={{ marginBottom: 16 }}>Gestión de Proveedores</h2>
+      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} />
+      <CrudModal
+        visible={modalVisible}
+        onCancel={closeModal}
+        onSubmit={handleSubmit}
+        form={form}
+        title={editingRecord ? 'Editar Proveedor' : 'Nuevo Proveedor'}
+        fields={fields}
+      />
     </div>
   )
 }

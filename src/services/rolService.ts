@@ -1,13 +1,5 @@
 import api from './api'
-
-export interface Rol {
-  id: number
-  nombre: string
-}
-
-export interface RolCreate {
-  nombre: string
-}
+import type { Rol, RolCreate } from '../types/configuracion'
 
 const rolService = {
   getAll: async () => {

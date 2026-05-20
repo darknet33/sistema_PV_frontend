@@ -1,3 +1,7 @@
+import type { Usuario } from './configuracion'
+
+export type { Usuario }
+
 export interface LoginRequest {
   username: string
   password: string
@@ -25,16 +29,4 @@ export interface LoginResponse {
 export interface CheckUsersResponse {
   has_users: boolean
   needs_setup: boolean
-}
-
-export interface Usuario {
-  id: number
-  username: string
-  nombres: string
-  apellidos: string
-  cargo: string
-  rol_id: number
-  activo: boolean
-  fecha_registro: string
-  fecha_actualizado: string
 }

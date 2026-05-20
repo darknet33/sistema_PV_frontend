@@ -1,13 +1,5 @@
 import api from './api'
-
-export interface Estado {
-  id: number
-  nombre: string
-}
-
-export interface EstadoCreate {
-  nombre: string
-}
+import type { Estado, EstadoCreate } from '../types/configuracion'
 
 const estadoService = {
   getAll: async () => {

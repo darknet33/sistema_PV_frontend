@@ -1,25 +1,5 @@
 import api from './api'
-
-export interface Usuario {
-  id: number
-  username: string
-  nombres: string
-  apellidos: string
-  cargo: string
-  rol_id: number
-  activo: boolean
-  fecha_registro: string
-  fecha_actualizado: string
-}
-
-export interface UsuarioCreate {
-  username: string
-  nombres: string
-  apellidos: string
-  cargo: string
-  rol_id: number
-  password: string
-}
+import type { Usuario, UsuarioCreate } from '../types/configuracion'
 
 const usuarioService = {
   getAll: async () => {

@@ -1,84 +1,44 @@
 import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Select, Popconfirm, message, Typography, Spin } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import usuarioService, { Usuario, UsuarioCreate } from '../../services/usuarioService'
-import rolService, { Rol } from '../../services/rolService'
-
-const { Title } = Typography
+import { Table, message } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import CrudModal from '../../components/CrudModal'
+import type { CrudField } from '../../components/CrudModal'
+import { useCrud } from '../../hooks/useCrud'
+import usuarioService from '../../services/usuarioService'
+import rolService from '../../services/rolService'
+import type { Usuario, Rol } from '../../types/configuracion'
 
 export default function UsuariosPage() {
-  const [data, setData] = useState<Usuario[]>([])
   const [roles, setRoles] = useState<Rol[]>([])
-  const [loading, setLoading] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<Usuario | null>(null)
-  const [form] = Form.useForm()
+  const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete } =
+    useCrud<Usuario>(usuarioService)
 
   useEffect(() => {
-    loadData()
-    loadRoles()
+    rolService.getAll().then(setRoles).catch(() => message.error('Error al cargar roles'))
   }, [])
 
-  const loadData = async () => {
-    setLoading(true)
-    try {
-      const usuarios = await usuarioService.getAll()
-      setData(usuarios)
-    } catch {
-      message.error('Error al cargar usuarios')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fields: CrudField[] = [
+    { name: 'username', label: 'Username', required: true },
+    {
+      name: 'password',
+      label: 'Password',
+      type: 'password',
+      required: !editingRecord,
+      rules: editingRecord ? [] : [{ required: true, message: 'Password requerido' }],
+    },
+    { name: 'nombres', label: 'Nombres', required: true },
+    { name: 'apellidos', label: 'Apellidos', required: true },
+    { name: 'cargo', label: 'Cargo', required: true },
+    {
+      name: 'rol_id',
+      label: 'Rol',
+      type: 'select',
+      required: true,
+      options: roles.map((r) => ({ value: r.id, label: r.nombre })),
+    },
+  ]
 
-  const loadRoles = async () => {
-    try {
-      const rolesData = await rolService.getAll()
-      setRoles(rolesData)
-    } catch {
-      message.error('Error al cargar roles')
-    }
-  }
-
-  const handleOpenModal = (record?: Usuario) => {
-    if (record) {
-      setEditingUser(record)
-      form.setFieldsValue({ ...record, password: undefined })
-    } else {
-      setEditingUser(null)
-      form.resetFields()
-    }
-    setModalOpen(true)
-  }
-
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields()
-      if (editingUser) {
-        await usuarioService.update(editingUser.id, values as UsuarioCreate)
-        message.success('Usuario actualizado')
-      } else {
-        await usuarioService.create(values as UsuarioCreate)
-        message.success('Usuario creado')
-      }
-      setModalOpen(false)
-      loadData()
-    } catch {
-      message.error('Error al guardar usuario')
-    }
-  }
-
-  const handleDelete = async (id: number) => {
-    try {
-      await usuarioService.delete(id)
-      message.success('Usuario eliminado')
-      loadData()
-    } catch {
-      message.error('Error al eliminar usuario')
-    }
-  }
-
-  const columns = [
+  const columns: ColumnsType<Usuario> = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: 'Username', dataIndex: 'username' },
     { title: 'Nombres', dataIndex: 'nombres' },
@@ -96,62 +56,29 @@ export default function UsuariosPage() {
     },
     {
       title: 'Acciones',
+      width: 120,
       render: (_: unknown, record: Usuario) => (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenModal(record)} />
-          <Popconfirm title="¿Eliminar usuario?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </div>
+        <span>
+          <a onClick={() => openModal(record)}>Editar</a>
+          <a onClick={() => handleDelete(record.id)} style={{ marginLeft: 8, color: 'red' }}>Eliminar</a>
+        </span>
       ),
     },
   ]
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>Usuarios</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
-          Nuevo Usuario
-        </Button>
-      </div>
-      <Spin spinning={loading}>
-        <Table columns={columns} dataSource={data} rowKey="id" pagination={{ pageSize: 10 }} />
-      </Spin>
-
-      <Modal
-        title={editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
-        open={modalOpen}
-        onOk={handleSubmit}
-        onCancel={() => setModalOpen(false)}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item name="username" label="Username" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="password" label="Password" rules={[{ required: !editingUser, message: 'Password requerido' }]}>
-            <Input.Password />
-          </Form.Item>
-          <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="cargo" label="Cargo" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="rol_id" label="Rol" rules={[{ required: true }]}>
-            <Select>
-              {roles.map((rol) => (
-                <Select.Option key={rol.id} value={rol.id}>
-                  {rol.nombre}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </Form>
-      </Modal>
+      <h2 style={{ marginBottom: 16 }}>Usuarios</h2>
+      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} />
+      <CrudModal
+        visible={modalVisible}
+        onCancel={closeModal}
+        onSubmit={handleSubmit}
+        form={form}
+        title={editingRecord ? 'Editar Usuario' : 'Nuevo Usuario'}
+        fields={fields}
+        width={520}
+      />
     </div>
   )
 }
