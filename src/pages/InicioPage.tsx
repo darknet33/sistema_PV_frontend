@@ -259,6 +259,7 @@ export default function InicioPage() {
               dataSource={data?.stock_bajo || []}
               rowKey="id"
               size="middle"
+              scroll={{ x: 'max-content' }}
               pagination={{ pageSize: 5, size: 'small' }}
               rowClassName={() => 'dashboard-row'}
             />
@@ -275,6 +276,7 @@ export default function InicioPage() {
               dataSource={data?.top_vendedores || []}
               rowKey="username"
               size="middle"
+              scroll={{ x: 'max-content' }}
               pagination={false}
             />
           </Card>

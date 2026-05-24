@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
-import { Button, Table, Popconfirm, Spin, Typography, Space } from 'antd'
+import { Button, Popconfirm, Spin, Grid } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from './CrudModal'
 import type { CrudField } from './CrudModal'
 import { useCrud } from '../hooks/useCrud'
+import ResponsiveTable from './ResponsiveTable'
+import PageHeader from './PageHeader'
 
-const { Title } = Typography
+const { useBreakpoint } = Grid
 
 interface CrudActions<T> {
   getAll: () => Promise<T[]>
@@ -15,7 +17,6 @@ interface CrudActions<T> {
   delete: (id: number) => Promise<void>
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface CrudPageProps<T extends { id: number }> {
   title: string
   actions: CrudActions<T>
@@ -39,6 +40,8 @@ export default function CrudPage<T extends { id: number }>({
 }: CrudPageProps<T>) {
   const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete } =
     useCrud<T>(actions)
+  const screens = useBreakpoint()
+  const isMobile = !screens.md
 
   const actionColumn: ColumnsType<T> = [
     ...columns,
@@ -47,40 +50,36 @@ export default function CrudPage<T extends { id: number }>({
       key: 'acciones',
       width: 120,
       render: (_: unknown, record: T) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openModal(record)} />
+        <div className="flex gap-1">
+          <Button size={isMobile ? 'middle' : 'small'} icon={<EditOutlined />} onClick={() => openModal(record)} />
           <Popconfirm title="¿Eliminar?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
+            <Button size={isMobile ? 'middle' : 'small'} danger icon={<DeleteOutlined />} />
           </Popconfirm>
           {extraActions?.(record)}
-        </Space>
+        </div>
       ),
     },
   ]
 
   if (loading && data.length === 0) {
-    return <Spin style={{ display: 'block', marginTop: 80 }} />
+    return <Spin className="flex justify-center py-20" />
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>{title}</Title>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {extraHeader}
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-            Nuevo
-          </Button>
-        </div>
-      </div>
+      <PageHeader title={title}>
+        {extraHeader}
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+          Nuevo
+        </Button>
+      </PageHeader>
 
-      <Table
+      <ResponsiveTable
         columns={actionColumn}
         dataSource={data}
         rowKey={rowKey}
         loading={loading}
-        size="middle"
-        pagination={{ pageSize: 10 }}
+        pagination={{ pageSize: 10, size: isMobile ? 'small' : 'default' }}
       />
 
       <CrudModal

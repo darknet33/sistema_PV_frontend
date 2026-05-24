@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, Form, Input, Spin, message } from 'antd'
-import { LockOutlined, UserOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Form, Input, Spin, message, notification } from 'antd'
+import { LockOutlined, UserOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { checkUsers } from '../services/authService'
 import type { LoginRequest, SetupAdminRequest } from '../types/auth'
@@ -36,7 +36,17 @@ export default function LoginPage() {
       message.success('Bienvenido al Sistema RHINO')
       navigate('/')
     } catch (error: any) {
-      message.error(error.response?.data?.detail || 'Error al iniciar sesion')
+      if (error.response?.status === 401) {
+        notification.error({
+          message: 'Inicio de sesión fallido',
+          description: 'El usuario o la contraseña son incorrectos',
+          icon: <CloseCircleOutlined className="!text-red-500" />,
+          placement: 'topRight',
+          duration: 4,
+        })
+      } else {
+        message.error(error.response?.data?.detail || 'Error al iniciar sesion')
+      }
     } finally {
       setLoading(false)
     }

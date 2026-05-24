@@ -1,8 +1,22 @@
-import { useEffect, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useState, useMemo } from 'react'
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import type { MenuProps } from 'antd'
+import {
+  DashboardOutlined,
+  ShoppingCartOutlined,
+  ShoppingOutlined,
+  TeamOutlined,
+  ShopOutlined,
+  FileTextOutlined,
+  UserOutlined,
+  SettingOutlined,
+  AppstoreOutlined,
+  UnorderedListOutlined,
+  DollarOutlined,
+} from '@ant-design/icons'
 import { useAuthStore, isTokenExpired } from './stores/authStore'
+import AppLayout from './components/AppLayout'
 import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
 import InicioPage from './pages/InicioPage'
 import ProductosPage from './pages/ProductosPage'
 import CategoriasPage from './pages/productos/CategoriasPage'
@@ -18,6 +32,17 @@ import RolesPage from './pages/configuracion/RolesPage'
 import ModulosPage from './pages/configuracion/ModulosPage'
 import ComprobantesPage from './pages/configuracion/ComprobantesPage'
 import EstadosPage from './pages/configuracion/EstadosPage'
+
+type MenuItem = Required<MenuProps>['items'][number]
+
+function getItem(
+  label: React.ReactNode,
+  key: React.Key,
+  icon?: React.ReactNode,
+  children?: MenuItem[],
+): MenuItem {
+  return { key, icon, children, label } as MenuItem
+}
 
 const MODULE_ROUTE_MAP: Record<string, string> = {
   Dashboard: '/',
@@ -53,6 +78,61 @@ function App() {
   const hasModules = modulos.length > 0
   const validSession = isAuthenticated && token && hasModules
 
+  const moduloNombres = new Set(modulos.map((m) => m.nombre))
+  const hasModule = (name: string) => moduloNombres.has(name)
+  const hasAny = (...names: string[]) => names.some((n) => moduloNombres.has(n))
+
+  const menuItems = useMemo(() => {
+    const items: MenuItem[] = []
+
+    if (hasModule('Dashboard')) {
+      items.push(getItem('Inicio', '/', <DashboardOutlined />))
+    }
+
+    if (hasAny('Productos', 'Categorias')) {
+      const children: MenuItem[] = []
+      if (hasModule('Productos')) children.push(getItem('Lista', '/productos/lista', <UnorderedListOutlined />))
+      if (hasModule('Categorias')) children.push(getItem('Categorías', '/productos/categorias', <AppstoreOutlined />))
+      items.push(getItem('Productos', 'productos-group', <ShoppingCartOutlined />, children))
+    }
+
+    if (hasAny('Compras', 'Proveedores')) {
+      const children: MenuItem[] = []
+      if (hasModule('Compras')) children.push(getItem('Compras', '/entradas/compras', <ShoppingOutlined />))
+      if (hasModule('Proveedores')) children.push(getItem('Proveedores', '/entradas/proveedores', <TeamOutlined />))
+      items.push(getItem('Entradas', 'entradas-group', <ShoppingOutlined />, children))
+    }
+
+    if (hasAny('Ventas', 'Clientes')) {
+      const children: MenuItem[] = []
+      if (hasModule('Ventas')) children.push(getItem('Ventas', '/salidas/ventas', <ShopOutlined />))
+      if (hasModule('Clientes')) children.push(getItem('Clientes', '/salidas/clientes', <TeamOutlined />))
+      items.push(getItem('Salidas', 'salidas-group', <ShopOutlined />, children))
+    }
+
+    items.push(getItem('Gastos', '/gastos', <DollarOutlined />))
+
+    if (hasModule('Reportes')) {
+      items.push(getItem('Reportes', '/reportes', <FileTextOutlined />))
+    }
+
+    const hasConfigModules = ['Usuarios', 'Roles', 'Modulos', 'Comprobantes', 'Estados'].some((m) => hasModule(m))
+    if (hasConfigModules) {
+      const children: MenuItem[] = []
+      if (hasModule('Usuarios')) children.push(getItem('Usuarios', '/configuracion/usuarios', <UserOutlined />))
+      if (hasModule('Roles')) children.push(getItem('Roles', '/configuracion/roles', <TeamOutlined />))
+      if (hasModule('Modulos')) children.push(getItem('Módulos', '/configuracion/modulos', <AppstoreOutlined />))
+      if (hasModule('Comprobantes')) children.push(getItem('Comprobantes', '/configuracion/comprobantes', <FileTextOutlined />))
+      if (hasModule('Estados')) children.push(getItem('Estados', '/configuracion/estados', <SettingOutlined />))
+      items.push(getItem('Configuración', 'config-group', <SettingOutlined />, children))
+    }
+
+    return items
+  }, [modulos])
+
+  const moduloPaths = new Set(modulos.map((m) => MODULE_ROUTE_MAP[m.nombre]).filter(Boolean))
+  const hasAccess = (path: string) => moduloPaths.has(path)
+
   if (checking) return null
 
   if (isAuthenticated && (!token || !hasModules)) {
@@ -60,13 +140,10 @@ function App() {
     return <Navigate to="/login" />
   }
 
-  const moduloPaths = new Set(modulos.map((m) => MODULE_ROUTE_MAP[m.nombre]).filter(Boolean))
-  const hasAccess = (path: string) => moduloPaths.has(path)
-
   return (
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} />
-      <Route path="/" element={validSession ? <DashboardPage /> : <Navigate to="/login" />}>
+      <Route path="/" element={validSession ? <AppLayout menuItems={menuItems}><Outlet /></AppLayout> : <Navigate to="/login" />}>
         <Route index element={<InicioPage />} />
 
         {hasAccess('/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}

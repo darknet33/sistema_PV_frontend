@@ -1,14 +1,17 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch } from 'antd'
+import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch, Grid } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
 import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo, exportProductos, importProductos, deleteProductosBatch, deleteAllProductos } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
 import type { Categoria } from '../types/categoria'
-
 import { calcularPrecioBase } from '../utils/pricing'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import ResponsiveTable from '../components/ResponsiveTable'
+import PageHeader from '../components/PageHeader'
+
+const { useBreakpoint } = Grid
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([])
@@ -28,6 +31,9 @@ export default function ProductosPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 })
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const screens = useBreakpoint()
+  const isMobile = !screens.md
 
   const watchedCosto = Form.useWatch('precio', form)
   const watchedUtilidad = Form.useWatch('utilidad', form)
@@ -250,7 +256,7 @@ export default function ProductosPage() {
         </Space>
       ),
     },
-  ], [categorias])
+  ], [])
 
   const columns: ColumnsType<Producto> = useMemo(() => {
     const catMap = new Map<number, string>()
@@ -263,7 +269,7 @@ export default function ProductosPage() {
         render: (_, r) => (
           <div>
             <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
-            <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
+            <div className="text-gray-500 text-xs">{r.marca}</div>
           </div>
         ),
       },
@@ -283,16 +289,16 @@ export default function ProductosPage() {
       )},
       {
         title: 'Acciones', key: 'acciones', render: (_, record) => (
-          <Space>
-            <Button icon={<EditOutlined />} size="small" onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setModalVisible(true) }} />
+          <div className="flex gap-1">
+            <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setModalVisible(true) }} />
             <Popconfirm title="¿Eliminar producto?" onConfirm={() => handleDelete(record.id)}>
-              <Button icon={<DeleteOutlined />} size="small" danger />
+              <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
             </Popconfirm>
-          </Space>
+          </div>
         )
       }
     ]
-  }, [categorias])
+  }, [categorias, isMobile])
 
   const catSelectOptions = useMemo(() =>
     categorias.map((c) => ({ value: c.id, label: c.nombre })),
@@ -310,42 +316,39 @@ export default function ProductosPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>Gestión de Productos</h2>
-        <Space wrap>
-          <Popconfirm
-            title="¿Eliminar todos los productos?"
-            onConfirm={handleDeleteAll}
-            okText="Sí, eliminar todos"
-            cancelText="Cancelar"
-          >
-            <Button danger>Eliminar todos</Button>
-          </Popconfirm>
-          <Button icon={<ExportOutlined />} onClick={handleExport}>
-            Exportar
-          </Button>
-          <Button icon={<ImportOutlined />} loading={importing} onClick={() => fileInputRef.current?.click()}>
-            Importar
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProducto(null); form.resetFields(); setModalVisible(true) }}>
-            Nuevo Producto
-          </Button>
-        </Space>
-      </div>
-      <input type="file" accept=".xlsx,.xls" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} />
-      <div style={{ marginBottom: 16 }}>
+      <PageHeader title="Gestión de Productos">
+        <Popconfirm
+          title="¿Eliminar todos los productos?"
+          onConfirm={handleDeleteAll}
+          okText="Sí, eliminar todos"
+          cancelText="Cancelar"
+        >
+          <Button danger size={isMobile ? 'small' : 'middle'}>Eliminar todos</Button>
+        </Popconfirm>
+        <Button icon={<ExportOutlined />} size={isMobile ? 'small' : 'middle'} onClick={handleExport}>
+          Exportar
+        </Button>
+        <Button icon={<ImportOutlined />} size={isMobile ? 'small' : 'middle'} loading={importing} onClick={() => fileInputRef.current?.click()}>
+          Importar
+        </Button>
+        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingProducto(null); form.resetFields(); setModalVisible(true) }}>
+          Nuevo Producto
+        </Button>
+      </PageHeader>
+      <input type="file" accept=".xlsx,.xls" ref={fileInputRef} className="hidden" onChange={handleImport} />
+      <div className="mb-4">
         <Input.Search
-          placeholder="Buscar por descripción"
+          placeholder="Buscar por descripción o código"
           allowClear
-          style={{ maxWidth: 300, marginBottom: 12 }}
+          className="max-w-[300px] mb-3"
           value={searchText}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div className="flex flex-wrap gap-2">
           <Tag.CheckableTag
             checked={filterCategoria === undefined}
             onChange={() => handleFilterChange(undefined)}
-            style={{ margin: 0 }}
+            className="!m-0"
           >
             Todas
           </Tag.CheckableTag>
@@ -354,7 +357,8 @@ export default function ProductosPage() {
               key={cat.id}
               checked={filterCategoria === cat.id}
               onChange={() => handleFilterChange(cat.id)}
-              style={{ margin: 0, backgroundColor: filterCategoria === cat.id ? colors[idx % colors.length] : undefined }}
+              className="!m-0"
+              style={{ backgroundColor: filterCategoria === cat.id ? colors[idx % colors.length] : undefined }}
             >
               {cat.nombre}
             </Tag.CheckableTag>
@@ -362,8 +366,8 @@ export default function ProductosPage() {
         </div>
       </div>
       {hasSelected && (
-        <div style={{ marginBottom: 8 }}>
-          <span style={{ marginRight: 8 }}>{selectedRowKeys.length} seleccionado(s)</span>
+        <div className="mb-2">
+          <span className="mr-2">{selectedRowKeys.length} seleccionado(s)</span>
           <Popconfirm
             title={`¿Eliminar ${selectedRowKeys.length} producto(s)?`}
             onConfirm={handleDeleteSelected}
@@ -375,15 +379,15 @@ export default function ProductosPage() {
         </div>
       )}
       <Spin spinning={loading}>
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={filteredProductos}
           rowKey="id"
-          rowSelection={rowSelection}
+          rowSelection={!isMobile ? rowSelection : undefined}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
-            showSizeChanger: true,
+            showSizeChanger: !isMobile,
             pageSizeOptions: ['10', '20', '50', '100'],
             showTotal: (total) => `${total} productos`,
             onChange: handlePaginationChange,
@@ -391,31 +395,31 @@ export default function ProductosPage() {
           }}
         />
       </Spin>
-      <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()}>
+      <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()} className="responsive-modal" width={isMobile ? '95%' : 600}>
         {editingProducto && (
-          <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-            <div style={{ display: 'flex', gap: 24 }}>
+          <div className="mb-4 p-3 bg-gray-50 rounded">
+            <div className="flex flex-col sm:flex-row gap-4 text-sm">
               <div><strong>Creado:</strong> {editingProducto.fecha_registro ? new Date(editingProducto.fecha_registro).toLocaleString('es-BO') : '-'}</div>
               <div><strong>Última modificación:</strong> {editingProducto.fecha_actualizado ? new Date(editingProducto.fecha_actualizado).toLocaleString('es-BO') : '-'}</div>
             </div>
           </div>
         )}
         <Form form={form} layout="vertical" onFinish={handleSave}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Form.Item name="codigo" label="Código" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="codigo" label="Código" rules={[{ required: true }]} className="flex-1 min-w-[130px]">
               <Input />
             </Form.Item>
-            <Form.Item name="marca" label="Marca" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
+            <Form.Item name="marca" label="Marca" rules={[{ required: true }]} className="flex-1 min-w-[130px]">
               <Input />
             </Form.Item>
-            <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]} style={{ flex: '1 1 200px' }}>
+            <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]} className="flex-1 min-w-[160px]">
               <Select
                 placeholder="Seleccione una categoría"
                 options={catSelectOptions}
                 popupRender={(menu) => (
                   <>
                     {menu}
-                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <div className="p-2 border-t border-gray-100">
                       <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => handleOpenCatModal()}>
                         Gestionar categorías
                       </Button>
@@ -428,19 +432,19 @@ export default function ProductosPage() {
           <Form.Item name="descripcion" label="Descripción" rules={[{ required: true }]}>
             <Input.TextArea rows={2} />
           </Form.Item>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Form.Item name="precio" label="Costo Bs." rules={[{ required: true }]} style={{ flex: '1 1 130px' }}>
-              <InputNumber min={0} step={0.01} prefix="Bs." style={{ width: '100%' }} />
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="precio" label="Costo Bs." rules={[{ required: true }]} className="flex-1 min-w-[110px]">
+              <InputNumber min={0} step={0.01} prefix="Bs." className="w-full" />
             </Form.Item>
-            <Form.Item name="utilidad" label="Utilidad Bs." initialValue={0} style={{ flex: '1 1 130px' }}>
-              <InputNumber min={0} step={0.01} prefix="Bs." style={{ width: '100%' }} />
+            <Form.Item name="utilidad" label="Utilidad Bs." initialValue={0} className="flex-1 min-w-[110px]">
+              <InputNumber min={0} step={0.01} prefix="Bs." className="w-full" />
             </Form.Item>
-            <Form.Item name="peso" label="Peso (kg)" style={{ flex: '1 1 100px' }}>
-              <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            <Form.Item name="peso" label="Peso (kg)" className="flex-1 min-w-[90px]">
+              <InputNumber min={0} step={0.01} className="w-full" />
             </Form.Item>
-            <Form.Item label="Precio Base" style={{ flex: '1 1 130px' }}>
+            <Form.Item label="Precio Base" className="flex-1 min-w-[110px]">
               <InputNumber
-                style={{ width: '100%' }}
+                className="w-full"
                 value={precioBaseCalculado}
                 disabled
                 variant="borderless"
@@ -448,12 +452,12 @@ export default function ProductosPage() {
               />
             </Form.Item>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Form.Item name="stock_inicial" label="Stock Inicial" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
-              <InputNumber min={0} disabled={editingProducto !== null} style={{ width: '100%' }} />
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="stock_inicial" label="Stock Inicial" rules={[{ required: true }]} className="flex-1 min-w-[130px]">
+              <InputNumber min={0} disabled={editingProducto !== null} className="w-full" />
             </Form.Item>
-            <Form.Item name="stock_minimo" label="Stock Mínimo" rules={[{ required: true }]} style={{ flex: '1 1 150px' }}>
-              <InputNumber min={0} style={{ width: '100%' }} />
+            <Form.Item name="stock_minimo" label="Stock Mínimo" rules={[{ required: true }]} className="flex-1 min-w-[130px]">
+              <InputNumber min={0} className="w-full" />
             </Form.Item>
           </div>
         </Form>
@@ -464,17 +468,17 @@ export default function ProductosPage() {
         open={catModalVisible}
         onCancel={() => setCatModalVisible(false)}
         onOk={handleSaveCategoria}
+        className="responsive-modal"
       >
-        <Form form={catForm} layout="vertical" style={{ marginBottom: 16 }}>
+        <Form form={catForm} layout="vertical" className="mb-4">
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
             <Input placeholder="Nombre de la categoría" />
           </Form.Item>
         </Form>
-        <Table
+        <ResponsiveTable
           columns={catColumns}
           dataSource={categorias}
           rowKey="id"
-          size="small"
           pagination={{ pageSize: 5 }}
         />
       </Modal>

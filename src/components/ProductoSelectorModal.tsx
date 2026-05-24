@@ -89,46 +89,48 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
   ]
 
   return (
-    <Modal
-      title="Seleccionar Producto"
-      open={visible}
-      onCancel={onCancel}
-      footer={null}
-      width={700}
-    >
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <Input
-          prefix={<SearchOutlined />}
-          placeholder="Buscar por código, descripción o marca"
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{ flex: 1 }}
-          allowClear
+      <Modal
+        title="Seleccionar Producto"
+        open={visible}
+        onCancel={onCancel}
+        footer={null}
+        width={700}
+        className="responsive-modal"
+      >
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Buscar por código, descripción o marca"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ flex: 1, minWidth: 180 }}
+            allowClear
+          />
+          <Select
+            placeholder="Categoría"
+            allowClear
+            style={{ width: 160, minWidth: 140 }}
+            value={categoriaFilter}
+            onChange={setCategoriaFilter}
+            options={categorias.map((c) => ({ value: c.id, label: c.nombre }))}
+          />
+        </div>
+        <Table
+          columns={columns}
+          dataSource={filtered}
+          rowKey="id"
+          loading={loading}
+          size="small"
+          pagination={{ pageSize: 8 }}
+          scroll={{ x: 'max-content' }}
+          onRow={(record) => ({
+            onClick: () => {
+              onSelect(record)
+              onCancel()
+            },
+            style: { cursor: 'pointer' },
+          })}
         />
-        <Select
-          placeholder="Categoría"
-          allowClear
-          style={{ width: 180 }}
-          value={categoriaFilter}
-          onChange={setCategoriaFilter}
-          options={categorias.map((c) => ({ value: c.id, label: c.nombre }))}
-        />
-      </div>
-      <Table
-        columns={columns}
-        dataSource={filtered}
-        rowKey="id"
-        loading={loading}
-        size="small"
-        pagination={{ pageSize: 8 }}
-        onRow={(record) => ({
-          onClick: () => {
-            onSelect(record)
-            onCancel()
-          },
-          style: { cursor: 'pointer' },
-        })}
-      />
     </Modal>
   )
 }

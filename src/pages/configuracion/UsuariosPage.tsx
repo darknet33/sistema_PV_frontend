@@ -72,7 +72,7 @@ export default function UsuariosPage() {
   return (
     <div>
       <h2 style={{ marginBottom: 16 }}>Usuarios</h2>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} />
+      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} scroll={{ x: 'max-content' }} pagination={{ pageSize: 10 }} />
       <CrudModal
         visible={modalVisible}
         onCancel={closeModal}

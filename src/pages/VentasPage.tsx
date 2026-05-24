@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -14,8 +14,11 @@ import categoriaService from '../services/categoriaService'
 import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
-
 import { calcularPrecioBase } from '../utils/pricing'
+import ResponsiveTable from '../components/ResponsiveTable'
+import PageHeader from '../components/PageHeader'
+
+const { useBreakpoint } = Grid
 
 interface DetalleLine {
   key: string
@@ -33,6 +36,8 @@ interface DetalleLine {
 }
 
 export default function VentasPage() {
+  const screens = useBreakpoint()
+  const isMobile = !screens.md
   const [ventas, setVentas] = useState<Venta[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
@@ -409,6 +414,14 @@ export default function VentasPage() {
     }
   }
 
+  const detColumns: ColumnsType<any> = [
+    { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 100 },
+    { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
+    { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', width: 80 },
+    { title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio || 0)).toFixed(2)}` },
+  ]
+
   const columns: ColumnsType<Venta> = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 60 },
     { title: 'Fecha', dataIndex: 'fecha', key: 'fecha', render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm') },
@@ -421,31 +434,24 @@ export default function VentasPage() {
     { title: 'Usuario', dataIndex: 'usuario_username', key: 'usuario_username' },
     {
       title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} size="small" onClick={() => openEditModal(record)} />
-          <Button icon={<PrinterOutlined />} size="small" onClick={() => handlePrintPdf(record.id)} />
+        <div className="flex gap-1">
+          <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => openEditModal(record)} />
+          <Button icon={<PrinterOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => handlePrintPdf(record.id)} />
           {record.estado_nombre !== 'Anulado' ? (
             <Popconfirm title="¿Anular venta?" onConfirm={() => handleAnular(record.id)}>
-              <Button icon={<CloseCircleOutlined />} size="small" style={{ color: '#faad14' }} />
+              <Button icon={<CloseCircleOutlined />} size={isMobile ? 'middle' : 'small'} className="!text-amber-500" />
             </Popconfirm>
           ) : (
             <Popconfirm title="¿Eliminar venta?" onConfirm={() => handleDelete(record.id)}>
-              <Button icon={<DeleteOutlined />} size="small" danger />
+              <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
             </Popconfirm>
           )}
-        </Space>
+        </div>
       ),
     },
   ]
 
   const expandedRowRender = (record: Venta) => {
-    const detColumns: ColumnsType<any> = [
-      { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 100 },
-      { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
-      { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', width: 80 },
-      { title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
-      { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio || 0)).toFixed(2)}` },
-    ]
     return (
       <Table
         columns={detColumns}
@@ -453,6 +459,7 @@ export default function VentasPage() {
         pagination={false}
         rowKey="id"
         size="small"
+        scroll={{ x: 'max-content' }}
       />
     )
   }
@@ -533,22 +540,21 @@ export default function VentasPage() {
     },
   ]
 
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2>Gestión de Ventas</h2>
-        <Space>
-          <Button icon={<DownloadOutlined />} onClick={handleDownloadReport}>
-            Reporte PDF
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-            Nueva Venta
-          </Button>
-        </Space>
-      </div>
+  const fabVisible = isMobile && !modalVisible
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+  return (
+    <div className={fabVisible ? 'pb-16' : ''}>
+      <PageHeader title="Gestión de Ventas">
+        <Button icon={<DownloadOutlined />} size={isMobile ? 'small' : 'middle'} onClick={handleDownloadReport}>
+          Reporte PDF
+        </Button>
+        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={openCreateModal} className={isMobile ? 'hidden' : ''}>
+          Nueva Venta
+        </Button>
+      </PageHeader>
+
+      <div className="mb-4">
+        <div className="flex flex-wrap gap-3 mb-3">
           <DatePicker.RangePicker
             value={filterFecha as any}
             onChange={(dates) => setFilterFecha(dates as any)}
@@ -557,16 +563,16 @@ export default function VentasPage() {
           <Input.Search
             placeholder="Buscar por cliente"
             allowClear
-            style={{ width: 300 }}
+            className="max-w-[300px]"
             value={searchClienteText}
             onChange={(e) => setSearchClienteText(e.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div className="flex flex-wrap gap-2">
           <Tag.CheckableTag
             checked={filterEstado === undefined}
             onChange={() => setFilterEstado(undefined)}
-            style={{ margin: 0 }}
+            className="!m-0"
           >
             Todos
           </Tag.CheckableTag>
@@ -575,7 +581,8 @@ export default function VentasPage() {
               key={est.id}
               checked={filterEstado === est.id}
               onChange={() => setFilterEstado(est.id)}
-              style={{ margin: 0, backgroundColor: filterEstado === est.id ? colors[idx % colors.length] : undefined }}
+              className="!m-0"
+              style={{ backgroundColor: filterEstado === est.id ? colors[idx % colors.length] : undefined }}
             >
               {est.nombre}
             </Tag.CheckableTag>
@@ -583,14 +590,25 @@ export default function VentasPage() {
         </div>
       </div>
 
-      <Table
+      <ResponsiveTable
         columns={columns}
         dataSource={filteredVentas}
         loading={loading}
         rowKey="id"
-        pagination={{ pageSize: 10 }}
-        expandable={{ expandedRowRender, rowExpandable: (r) => r.detalles && r.detalles.length > 0 }}
+        pagination={{ pageSize: 10, size: isMobile ? 'small' : 'default' }}
+        expandable={!isMobile ? { expandedRowRender, rowExpandable: (r) => r.detalles && r.detalles.length > 0 } : undefined}
       />
+
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={openCreateModal}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
 
       <Modal
         title={editingVenta ? 'Editar Venta' : 'Nueva Venta'}
@@ -598,14 +616,15 @@ export default function VentasPage() {
         onCancel={() => { setModalVisible(false); setDetalles([]); setNumComprobanteAuto('') }}
         onOk={handleSave}
         width={720}
+        className="responsive-modal"
       >
         <Form form={form} layout="vertical">
           <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker className="w-full" />
           </Form.Item>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Form.Item name="cliente_id" label="Cliente" rules={[{ required: true }]} style={{ width: 220, marginBottom: 12 }}>
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="cliente_id" label="Cliente" rules={[{ required: true }]} className="flex-1 min-w-[180px] !mb-3">
               <Select
                 showSearch
                 placeholder="Seleccione un cliente"
@@ -615,7 +634,7 @@ export default function VentasPage() {
                 popupRender={(menu) => (
                   <>
                     {menu}
-                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <div className="p-2 border-t border-gray-100">
                       <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingCliente(null); clienteForm.resetFields(); setClienteModalVisible(true) }}>
                         Gestionar clientes
                       </Button>
@@ -624,7 +643,7 @@ export default function VentasPage() {
                 )}
               />
             </Form.Item>
-            <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} style={{ width: 150, marginBottom: 12 }}>
+            <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} className="flex-1 min-w-[130px] !mb-3">
               <Select
                 placeholder="Seleccione un comprobante"
                 options={comprobanteOptions}
@@ -633,7 +652,7 @@ export default function VentasPage() {
                 popupRender={(menu) => (
                   <>
                     {menu}
-                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <div className="p-2 border-t border-gray-100">
                       <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingComprobante(null); comprobanteForm.resetFields(); setComprobanteModalVisible(true) }}>
                         Gestionar comprobantes
                       </Button>
@@ -642,13 +661,13 @@ export default function VentasPage() {
                 )}
               />
             </Form.Item>
-            <Form.Item name="num_comprobante" label="N° Comprobante" style={{ width: 200, marginBottom: 12 }}>
-              <Space.Compact style={{ width: '100%' }}>
+            <Form.Item name="num_comprobante" label="N° Comprobante" className="flex-1 min-w-[160px] !mb-3">
+              <Space.Compact className="w-full">
                 <Input
                   placeholder={autoNum ? 'Automático' : 'Ingrese número'}
                   value={editingVenta ? undefined : (autoNum ? (numComprobanteAuto || undefined) : undefined)}
                   disabled={editingVenta !== null || autoNum}
-                  style={{ width: '100%' }}
+                  className="w-full"
                 />
                 {!editingVenta && (
                   <Switch checkedChildren="A" unCheckedChildren="M" checked={autoNum} onChange={(v) => { setAutoNum(v); if (v) setNumComprobanteAuto('') }} />
@@ -664,7 +683,7 @@ export default function VentasPage() {
               popupRender={(menu) => (
                 <>
                   {menu}
-                  <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                  <div className="p-2 border-t border-gray-100">
                     <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingEstado(null); estadoForm.resetFields(); setEstadoModalVisible(true) }}>
                       Gestionar estados
                     </Button>
@@ -674,16 +693,16 @@ export default function VentasPage() {
             />
           </Form.Item>
 
-          <div style={{ display: 'flex', gap: 12 }}>
-            <Form.Item name="impuesto" label="Impuesto %" style={{ width: 150 }} initialValue={0}>
-              <InputNumber min={0} max={100} style={{ width: '100%' }} />
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="impuesto" label="Impuesto %" className="flex-1 min-w-[120px]" initialValue={0}>
+              <InputNumber min={0} max={100} className="w-full" />
             </Form.Item>
-            <Form.Item name="descuento" label="Descuento %" style={{ width: 150 }} initialValue={0}>
-              <InputNumber min={0} max={100} style={{ width: '100%' }} />
+            <Form.Item name="descuento" label="Descuento %" className="flex-1 min-w-[120px]" initialValue={0}>
+              <InputNumber min={0} max={100} className="w-full" />
             </Form.Item>
           </div>
 
-          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="flex justify-between items-center mb-2">
             <strong>Detalles de venta</strong>
             {!editingVenta && numComprobanteAuto && (
               <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
@@ -691,90 +710,102 @@ export default function VentasPage() {
           </div>
 
           {detalles.map((det, index) => (
-            <Space key={det.key} style={{ width: '100%', marginBottom: 8 }} align="start">
-              <Form.Item label={index === 0 ? 'Producto' : ''} style={{ minWidth: 180, maxWidth: 200 }}>
-                <Input.Search
-                  placeholder="Buscar producto"
-                  value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
-                  readOnly
-                  onSearch={() => openProductoModal(det.key)}
-                  enterButton={<SearchOutlined />}
-                />
-              </Form.Item>
-              <Form.Item label={index === 0 ? 'Cant.' : ''} style={{ width: 70 }}>
-                <InputNumber
-                  min={1}
-                  style={{ width: '100%' }}
-                  value={det.cantidad}
-                  onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
-                />
-                {det.producto_id && det.cantidad > det.stock_actual && (
-                  <div style={{ color: '#ff4d4f', fontSize: 11, lineHeight: '14px', marginTop: 2 }}>
-                    Stock: {det.stock_actual}
-                  </div>
-                )}
-              </Form.Item>
-              <Form.Item label={index === 0 ? 'Costo Bs.' : ''} style={{ width: 90 }}>
-                <InputNumber
-                  style={{ width: '100%' }}
-                  value={det.costo}
-                  disabled
-                  variant="borderless"
-                  prefix="Bs."
-                />
-              </Form.Item>
-              <Form.Item label={index === 0 ? 'Utilidad Bs.' : ''} style={{ width: 90 }}>
-                <InputNumber
-                  min={0}
-                  step={0.01}
-                  prefix="Bs."
-                  style={{ width: '100%' }}
-                  value={det.utilidad}
-                  onChange={(val) => updateDetalle(det.key, 'utilidad', val || 0)}
-                />
-              </Form.Item>
-              <Form.Item label={index === 0 ? 'Precio Venta' : ''} style={{ width: 100 }}>
-                <InputNumber
-                  style={{ width: '100%' }}
-                  value={det.precio}
-                  disabled
-                  variant="borderless"
-                  prefix="Bs."
-                />
-              </Form.Item>
-              <Form.Item label={index === 0 ? 'Subtotal' : ''} style={{ width: 90 }}>
-                <InputNumber
-                  style={{ width: '100%' }}
-                  value={(det.cantidad || 0) * (det.precio || 0)}
-                  disabled
-                  variant="borderless"
-                />
-              </Form.Item>
-              {detalles.length > 1 && (
-                <Form.Item label={index === 0 ? ' ' : ''}>
-                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} />
+            <div key={det.key} className="flex flex-wrap gap-2 mb-2 items-start">
+              <div className="flex-1 min-w-[140px]">
+                <Form.Item label={index === 0 ? 'Producto' : ''} className="!mb-0">
+                  <Input.Search
+                    placeholder="Buscar producto"
+                    value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
+                    readOnly
+                    onSearch={() => openProductoModal(det.key)}
+                    enterButton={<SearchOutlined />}
+                  />
                 </Form.Item>
+              </div>
+              <div className="w-[65px] shrink-0">
+                <Form.Item label={index === 0 ? 'Cant.' : ''} className="!mb-0">
+                  <InputNumber
+                    min={1}
+                    className="w-full"
+                    value={det.cantidad}
+                    onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
+                  />
+                  {det.producto_id && det.cantidad > det.stock_actual && (
+                    <div className="text-red-500 text-xs leading-[14px] mt-0.5">
+                      Stock: {det.stock_actual}
+                    </div>
+                  )}
+                </Form.Item>
+              </div>
+              <div className="w-[80px] shrink-0">
+                <Form.Item label={index === 0 ? 'Costo' : ''} className="!mb-0">
+                  <InputNumber
+                    className="w-full"
+                    value={det.costo}
+                    disabled
+                    variant="borderless"
+                    prefix="Bs."
+                  />
+                </Form.Item>
+              </div>
+              <div className="w-[80px] shrink-0">
+                <Form.Item label={index === 0 ? 'Util.' : ''} className="!mb-0">
+                  <InputNumber
+                    min={0}
+                    step={0.01}
+                    prefix="Bs."
+                    className="w-full"
+                    value={det.utilidad}
+                    onChange={(val) => updateDetalle(det.key, 'utilidad', val || 0)}
+                  />
+                </Form.Item>
+              </div>
+              <div className="w-[90px] shrink-0">
+                <Form.Item label={index === 0 ? 'P. Venta' : ''} className="!mb-0">
+                  <InputNumber
+                    className="w-full"
+                    value={det.precio}
+                    disabled
+                    variant="borderless"
+                    prefix="Bs."
+                  />
+                </Form.Item>
+              </div>
+              <div className="w-[80px] shrink-0">
+                <Form.Item label={index === 0 ? 'Subtotal' : ''} className="!mb-0">
+                  <InputNumber
+                    className="w-full"
+                    value={(det.cantidad || 0) * (det.precio || 0)}
+                    disabled
+                    variant="borderless"
+                  />
+                </Form.Item>
+              </div>
+              {detalles.length > 1 && (
+                <div className={index === 0 ? 'pt-[22px]' : ''}>
+                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} size="small" />
+                </div>
               )}
-            </Space>
+            </div>
           ))}
 
-          <Button type="dashed" onClick={addDetalleRow} style={{ width: '100%', marginBottom: 12 }} icon={<PlusOutlined />}>
+          <Button type="dashed" onClick={addDetalleRow} className="w-full !mb-3" icon={<PlusOutlined />}>
             Agregar producto
           </Button>
 
-          <div style={{ textAlign: 'right', fontSize: 15, fontWeight: 'bold' }}>
-            <div>Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
+          <div className="text-right font-bold">
+            <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
             {Number(impuestoPct || 0) > 0 && (
-              <div style={{ fontWeight: 'normal', fontSize: 14, color: '#1890ff' }}>
+              <div className="font-normal text-sm text-blue-500">
                 IVA ({impuestoPct}%): Bs. {(subtotalCalculado * Number(impuestoPct || 0) / 100).toFixed(2)}
               </div>
             )}
             {Number(descuentoPct || 0) > 0 && (
-              <div style={{ fontWeight: 'normal', fontSize: 14, color: '#52c41a' }}>
+              <div className="font-normal text-sm text-green-500">
                 Descuento ({descuentoPct}%): -Bs. {(subtotalCalculado * Number(descuentoPct || 0) / 100).toFixed(2)}
               </div>
             )}
-            <div style={{ fontSize: 18, marginTop: 4 }}>
+            <div className="text-lg mt-1">
               Total: Bs. {totalCalculado.toFixed(2)}
             </div>
           </div>
@@ -787,11 +818,12 @@ export default function VentasPage() {
         onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
         footer={null}
         width={700}
+        className="responsive-modal"
       >
         <Input.Search
           placeholder="Buscar por código, descripción o marca"
           allowClear
-          style={{ marginBottom: 12 }}
+          className="mb-3"
           value={productoSearchText}
           onChange={(e) => setProductoSearchText(e.target.value)}
         />
@@ -800,6 +832,7 @@ export default function VentasPage() {
           dataSource={filteredProductos}
           rowKey="id"
           size="small"
+          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 8 }}
           onRow={(record) => ({
             onClick: () => selectProducto(record),
@@ -829,6 +862,7 @@ export default function VentasPage() {
           }
         }}
         width={500}
+        className="responsive-modal"
       >
         <Form form={clienteForm} layout="vertical">
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
@@ -844,11 +878,10 @@ export default function VentasPage() {
             <Input />
           </Form.Item>
         </Form>
-        <Table
+        <ResponsiveTable
           columns={clienteColumns}
           dataSource={clientes}
           rowKey="id"
-          size="small"
           pagination={{ pageSize: 5 }}
         />
       </Modal>
@@ -873,20 +906,20 @@ export default function VentasPage() {
             message.error('Error al guardar comprobante')
           }
         }}
+        className="responsive-modal"
       >
         <Form form={comprobanteForm} layout="vertical">
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name="numero" label="Número inicial" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
+            <InputNumber min={1} className="w-full" />
           </Form.Item>
         </Form>
-        <Table
+        <ResponsiveTable
           columns={comprobanteSubColumns}
           dataSource={comprobantes}
           rowKey="id"
-          size="small"
           pagination={{ pageSize: 5 }}
         />
       </Modal>
@@ -911,17 +944,17 @@ export default function VentasPage() {
             message.error('Error al guardar estado')
           }
         }}
+        className="responsive-modal"
       >
         <Form form={estadoForm} layout="vertical">
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
         </Form>
-        <Table
+        <ResponsiveTable
           columns={estadoSubColumns}
           dataSource={estados}
           rowKey="id"
-          size="small"
           pagination={{ pageSize: 5 }}
         />
       </Modal>

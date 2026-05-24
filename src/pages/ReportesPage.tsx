@@ -250,6 +250,7 @@ export default function ReportesPage() {
             dataSource={ventas}
             rowKey="venta_id"
             size="small"
+            scroll={{ x: 'max-content' }}
             pagination={{ pageSize: 5 }}
           />
         </Card>
@@ -269,6 +270,7 @@ export default function ReportesPage() {
             dataSource={compras}
             rowKey="compra_id"
             size="small"
+            scroll={{ x: 'max-content' }}
             pagination={{ pageSize: 5 }}
           />
         </Card>
@@ -279,6 +281,7 @@ export default function ReportesPage() {
             dataSource={topProductos}
             rowKey="id"
             size="small"
+            scroll={{ x: 'max-content' }}
             pagination={false}
           />
         </Card>
@@ -312,6 +315,7 @@ export default function ReportesPage() {
         onCancel={() => { setProductoModalVisible(false); setProductoSearchText('') }}
         footer={null}
         width={650}
+        className="responsive-modal"
       >
         <Input.Search
           placeholder="Buscar por código, descripción o marca"
@@ -338,6 +342,7 @@ export default function ReportesPage() {
           dataSource={filteredProductos}
           rowKey="id"
           size="small"
+          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 8 }}
           onRow={(record) => ({
             onClick: () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -16,6 +16,10 @@ import type { Categoria } from '../types/categoria'
 import categoriaService from '../services/categoriaService'
 import { formatCurrency } from '../utils/format'
 import { calcularPrecioBase } from '../utils/pricing'
+import ResponsiveTable from '../components/ResponsiveTable'
+import PageHeader from '../components/PageHeader'
+
+const { useBreakpoint } = Grid
 
 interface DetalleLine {
   key: string
@@ -28,6 +32,8 @@ interface DetalleLine {
 }
 
 export default function ComprasPage() {
+  const screens = useBreakpoint()
+  const isMobile = !screens.md
   const [compras, setCompras] = useState<Compra[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
@@ -225,15 +231,18 @@ export default function ComprasPage() {
     })
     setNumComprobanteAuto(compra.num_comprobante)
     setDetalles(
-      compra.detalles?.map((d, i) => ({
-        key: String(i + 1),
-        producto_id: d.producto_id,
-        producto_nombre: d.producto_nombre,
-        producto_codigo: d.producto_codigo,
-        producto_categoria: d.producto_categoria || '',
-        cantidad: d.cantidad,
-        costo: Number(d.costo),
-      })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }]
+      compra.detalles?.map((d, i) => {
+        const p = productos.find((p2) => p2.id === d.producto_id)
+        return {
+          key: String(i + 1),
+          producto_id: d.producto_id,
+          producto_nombre: d.producto_nombre,
+          producto_codigo: d.producto_codigo,
+          producto_categoria: d.producto_categoria || '',
+          cantidad: d.cantidad,
+          costo: p ? Number(p.precio || 0) : Number(d.costo),
+        }
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }]
     )
     setModalVisible(true)
   }
@@ -316,9 +325,11 @@ export default function ComprasPage() {
 
   const selectProducto = (producto: Producto) => {
     if (selectedDetalleKey) {
+      const p = productosActivos.find((p2) => p2.id === producto.id)
+      const costo = Number(p?.precio ?? producto.precio ?? 0)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
-          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', costo: Number(producto.precio || 0) }
+          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', costo }
           : d
       ))
     }
@@ -374,31 +385,32 @@ export default function ComprasPage() {
     { title: 'Usuario', dataIndex: 'usuario_username', key: 'usuario_username' },
     {
       title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} size="small" onClick={() => openEditModal(record)} />
-          <Button icon={<PrinterOutlined />} size="small" onClick={() => handlePrintPdf(record.id)} />
+        <div className="flex gap-1">
+          <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => openEditModal(record)} />
+          <Button icon={<PrinterOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => handlePrintPdf(record.id)} />
           {record.estado_nombre !== 'Anulado' ? (
             <Popconfirm title="¿Anular compra?" onConfirm={() => handleAnular(record.id)}>
-              <Button icon={<CloseCircleOutlined />} size="small" style={{ color: '#faad14' }} />
+              <Button icon={<CloseCircleOutlined />} size={isMobile ? 'middle' : 'small'} className="!text-amber-500" />
             </Popconfirm>
           ) : (
             <Popconfirm title="¿Eliminar compra?" onConfirm={() => handleDelete(record.id)}>
-              <Button icon={<DeleteOutlined />} size="small" danger />
+              <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
             </Popconfirm>
           )}
-        </Space>
+        </div>
       ),
     },
   ]
 
+  const detColumns: ColumnsType<any> = [
+    { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 100 },
+    { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
+    { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', width: 80 },
+    { title: 'Costo', dataIndex: 'costo', key: 'costo', width: 100, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.costo || 0)).toFixed(2)}` },
+  ]
+
   const expandedRowRender = (record: Compra) => {
-    const detColumns: ColumnsType<any> = [
-      { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 100 },
-      { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
-      { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', width: 80 },
-      { title: 'Costo', dataIndex: 'costo', key: 'costo', width: 100, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
-      { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.costo || 0)).toFixed(2)}` },
-    ]
     return (
       <Table
         columns={detColumns}
@@ -406,6 +418,7 @@ export default function ComprasPage() {
         pagination={false}
         rowKey="id"
         size="small"
+        scroll={{ x: 'max-content' }}
       />
     )
   }
@@ -486,22 +499,21 @@ export default function ComprasPage() {
     },
   ]
 
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2>Gestión de Compras</h2>
-        <Space>
-          <Button icon={<DownloadOutlined />} onClick={handleDownloadReport}>
-            Reporte PDF
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-            Nueva Compra
-          </Button>
-        </Space>
-      </div>
+  const fabVisible = isMobile && !modalVisible
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+  return (
+    <div className={fabVisible ? 'pb-16' : ''}>
+      <PageHeader title="Gestión de Compras">
+        <Button icon={<DownloadOutlined />} size={isMobile ? 'small' : 'middle'} onClick={handleDownloadReport}>
+          Reporte PDF
+        </Button>
+        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={openCreateModal} className={isMobile ? 'hidden' : ''}>
+          Nueva Compra
+        </Button>
+      </PageHeader>
+
+      <div className="mb-4">
+        <div className="flex flex-wrap gap-3 mb-3">
           <DatePicker.RangePicker
             value={filterFecha as any}
             onChange={(dates) => setFilterFecha(dates as any)}
@@ -510,16 +522,16 @@ export default function ComprasPage() {
           <Input.Search
             placeholder="Buscar por proveedor"
             allowClear
-            style={{ width: 300 }}
+            className="max-w-[300px]"
             value={searchProveedorText}
             onChange={(e) => setSearchProveedorText(e.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div className="flex flex-wrap gap-2">
           <Tag.CheckableTag
             checked={filterEstado === undefined}
             onChange={() => setFilterEstado(undefined)}
-            style={{ margin: 0 }}
+            className="!m-0"
           >
             Todos
           </Tag.CheckableTag>
@@ -528,7 +540,8 @@ export default function ComprasPage() {
               key={est.id}
               checked={filterEstado === est.id}
               onChange={() => setFilterEstado(est.id)}
-              style={{ margin: 0, backgroundColor: filterEstado === est.id ? colors[idx % colors.length] : undefined }}
+              className="!m-0"
+              style={{ backgroundColor: filterEstado === est.id ? colors[idx % colors.length] : undefined }}
             >
               {est.nombre}
             </Tag.CheckableTag>
@@ -536,14 +549,25 @@ export default function ComprasPage() {
         </div>
       </div>
 
-      <Table
+      <ResponsiveTable
         columns={columns}
         dataSource={filteredCompras}
         loading={loading}
         rowKey="id"
-        pagination={{ pageSize: 10 }}
-        expandable={{ expandedRowRender, rowExpandable: (r) => r.detalles && r.detalles.length > 0 }}
+        pagination={{ pageSize: 10, size: isMobile ? 'small' : 'default' }}
+        expandable={!isMobile ? { expandedRowRender, rowExpandable: (r) => r.detalles && r.detalles.length > 0 } : undefined}
       />
+
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={openCreateModal}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
 
       <Modal
         title={editingCompra ? 'Editar Compra' : 'Nueva Compra'}
@@ -551,14 +575,15 @@ export default function ComprasPage() {
         onCancel={() => { setModalVisible(false); setDetalles([]); setNumComprobanteAuto('') }}
         onOk={handleSave}
         width={720}
+        className="responsive-modal"
       >
         <Form form={form} layout="vertical">
           <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker className="w-full" />
           </Form.Item>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Form.Item name="proveedor_id" label="Proveedor" rules={[{ required: true }]} style={{ width: 220, marginBottom: 12 }}>
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="proveedor_id" label="Proveedor" rules={[{ required: true }]} className="flex-1 min-w-[180px] !mb-3">
               <Select
                 showSearch
                 placeholder="Seleccione un proveedor"
@@ -568,7 +593,7 @@ export default function ComprasPage() {
                 popupRender={(menu) => (
                   <>
                     {menu}
-                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <div className="p-2 border-t border-gray-100">
                       <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingProveedor(null); proveedorForm.resetFields(); setProveedorModalVisible(true) }}>
                         Gestionar proveedores
                       </Button>
@@ -577,7 +602,7 @@ export default function ComprasPage() {
                 )}
               />
             </Form.Item>
-            <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} style={{ width: 150, marginBottom: 12 }}>
+            <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} className="flex-1 min-w-[130px] !mb-3">
               <Select
                 placeholder="Seleccione un comprobante"
                 options={comprobanteOptions}
@@ -586,7 +611,7 @@ export default function ComprasPage() {
                 popupRender={(menu) => (
                   <>
                     {menu}
-                    <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <div className="p-2 border-t border-gray-100">
                       <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingComprobante(null); comprobanteForm.resetFields(); setComprobanteModalVisible(true) }}>
                         Gestionar comprobantes
                       </Button>
@@ -595,13 +620,13 @@ export default function ComprasPage() {
                 )}
               />
             </Form.Item>
-            <Form.Item name="num_comprobante" label="N° Comprobante" style={{ width: 200, marginBottom: 12 }}>
-              <Space.Compact style={{ width: '100%' }}>
+            <Form.Item name="num_comprobante" label="N° Comprobante" className="flex-1 min-w-[160px] !mb-3">
+              <Space.Compact className="w-full">
                 <Input
                   placeholder={autoNum ? 'Automático' : 'Ingrese número'}
                   value={editingCompra ? undefined : (autoNum ? (numComprobanteAuto || undefined) : undefined)}
                   disabled={editingCompra !== null || autoNum}
-                  style={{ width: '100%' }}
+                  className="w-full"
                 />
                 {!editingCompra && (
                   <Switch checkedChildren="A" unCheckedChildren="M" checked={autoNum} onChange={(v) => { setAutoNum(v); if (v) setNumComprobanteAuto('') }} />
@@ -617,7 +642,7 @@ export default function ComprasPage() {
               popupRender={(menu) => (
                 <>
                   {menu}
-                  <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                  <div className="p-2 border-t border-gray-100">
                     <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingEstado(null); estadoForm.resetFields(); setEstadoModalVisible(true) }}>
                       Gestionar estados
                     </Button>
@@ -627,7 +652,7 @@ export default function ComprasPage() {
             />
           </Form.Item>
 
-          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="flex justify-between items-center mb-2">
             <strong>Detalles de compra</strong>
             {!editingCompra && numComprobanteAuto && (
               <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
@@ -635,47 +660,53 @@ export default function ComprasPage() {
           </div>
 
           {detalles.map((det, index) => (
-            <Space key={det.key} style={{ width: '100%', marginBottom: 8 }} align="start">
-              <Form.Item label={index === 0 ? 'Producto' : ''} style={{ width: 320 }}>
-                <Input.Search
-                  placeholder="Buscar producto"
-                  value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
-                  readOnly
-                  onSearch={() => openProductoModal(det.key)}
-                  enterButton={<SearchOutlined />}
-                />
-              </Form.Item>
-              <Form.Item label={index === 0 ? 'Cantidad' : ''} style={{ width: 100 }}>
-                <InputNumber
-                  min={1}
-                  style={{ width: '100%' }}
-                  value={det.cantidad}
-                  onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
-                />
-              </Form.Item>
-              <Form.Item label={index === 0 ? 'Costo' : ''} style={{ width: 120 }}>
-                <InputNumber
-                  min={0}
-                  step={0.01}
-                  prefix="Bs."
-                  style={{ width: '100%' }}
-                  value={det.costo}
-                  onChange={(val) => updateDetalle(det.key, 'costo', val || 0)}
-                />
-              </Form.Item>
-              {detalles.length > 1 && (
-                <Form.Item label={index === 0 ? ' ' : ''}>
-                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} />
+            <div key={det.key} className="flex flex-wrap gap-2 mb-2 items-start">
+              <div className="flex-1 min-w-[160px]">
+                <Form.Item label={index === 0 ? 'Producto' : ''} className="!mb-0">
+                  <Input.Search
+                    placeholder="Buscar producto"
+                    value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
+                    readOnly
+                    onSearch={() => openProductoModal(det.key)}
+                    enterButton={<SearchOutlined />}
+                  />
                 </Form.Item>
+              </div>
+              <div className="w-[80px] shrink-0">
+                <Form.Item label={index === 0 ? 'Cantidad' : ''} className="!mb-0">
+                  <InputNumber
+                    min={1}
+                    className="w-full"
+                    value={det.cantidad}
+                    onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
+                  />
+                </Form.Item>
+              </div>
+              <div className="w-[110px] shrink-0">
+                <Form.Item label={index === 0 ? 'Costo' : ''} className="!mb-0">
+                  <InputNumber
+                    min={0}
+                    step={0.01}
+                    prefix="Bs."
+                    className="w-full"
+                    value={det.costo}
+                    onChange={(val) => updateDetalle(det.key, 'costo', val || 0)}
+                  />
+                </Form.Item>
+              </div>
+              {detalles.length > 1 && (
+                <div className={index === 0 ? 'pt-[22px]' : ''}>
+                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} size="small" />
+                </div>
               )}
-            </Space>
+            </div>
           ))}
 
-          <Button type="dashed" onClick={addDetalleRow} style={{ width: '100%', marginBottom: 12 }} icon={<PlusOutlined />}>
+          <Button type="dashed" onClick={addDetalleRow} className="w-full !mb-3" icon={<PlusOutlined />}>
             Agregar producto
           </Button>
 
-          <div style={{ textAlign: 'right', fontSize: 18, fontWeight: 'bold' }}>
+          <div className="text-right text-lg font-bold">
             Total: Bs. {totalCalculado.toFixed(2)}
           </div>
         </Form>
@@ -687,11 +718,12 @@ export default function ComprasPage() {
         onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
         footer={null}
         width={700}
+        className="responsive-modal"
       >
         <Input.Search
           placeholder="Buscar por código, descripción o marca"
           allowClear
-          style={{ marginBottom: 12 }}
+          className="mb-3"
           value={productoSearchText}
           onChange={(e) => setProductoSearchText(e.target.value)}
         />
@@ -700,6 +732,7 @@ export default function ComprasPage() {
           dataSource={filteredProductos}
           rowKey="id"
           size="small"
+          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 8 }}
           onRow={(record) => ({
             onClick: () => selectProducto(record),
@@ -729,6 +762,7 @@ export default function ComprasPage() {
           }
         }}
         width={500}
+        className="responsive-modal"
       >
         <Form form={proveedorForm} layout="vertical">
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
@@ -750,11 +784,10 @@ export default function ComprasPage() {
             <Input type="email" />
           </Form.Item>
         </Form>
-        <Table
+        <ResponsiveTable
           columns={proveedorColumns}
           dataSource={proveedores}
           rowKey="id"
-          size="small"
           pagination={{ pageSize: 5 }}
         />
       </Modal>
@@ -785,14 +818,13 @@ export default function ComprasPage() {
             <Input />
           </Form.Item>
           <Form.Item name="numero" label="Número inicial" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
+            <InputNumber min={1} className="w-full" />
           </Form.Item>
         </Form>
-        <Table
+        <ResponsiveTable
           columns={comprobanteSubColumns}
           dataSource={comprobantes}
           rowKey="id"
-          size="small"
           pagination={{ pageSize: 5 }}
         />
       </Modal>
@@ -823,11 +855,10 @@ export default function ComprasPage() {
             <Input />
           </Form.Item>
         </Form>
-        <Table
+        <ResponsiveTable
           columns={estadoSubColumns}
           dataSource={estados}
           rowKey="id"
-          size="small"
           pagination={{ pageSize: 5 }}
         />
       </Modal>
