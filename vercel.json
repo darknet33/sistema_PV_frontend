@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://sistema-inventario-api-z11k.onrender.com/api/:path*"
+      "destination": "https://sistema-inventario-api-nwn3.onrender.com/api/:path*"
     }
   ]
 }
