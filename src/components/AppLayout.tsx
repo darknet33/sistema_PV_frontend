@@ -52,7 +52,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
   const siderContent = (
     <>
       <div className="h-16 flex items-center justify-center text-white font-bold text-xl">
-        {!isMobile && !collapsed && 'RHINO 3.0'}
+        {!isMobile && !collapsed && 'Sistema de Inventario'}
       </div>
       <Menu
         theme="dark"
@@ -69,7 +69,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
     <Layout className="min-h-screen">
       {isMobile ? (
         <Drawer
-          title="RHINO 3.0"
+          title="Sistema de Inventario"
           placement="left"
           onClose={() => setMobileDrawerOpen(false)}
           open={mobileDrawerOpen}

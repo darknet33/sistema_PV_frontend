@@ -33,7 +33,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(values)
-      message.success('Bienvenido al Sistema RHINO')
+      message.success('Bienvenido al Sistema de Inventario')
       navigate('/')
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -77,7 +77,7 @@ export default function LoginPage() {
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f0f2f5' }}>
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <h1 style={{ color: '#1890ff' }}>Sistema RHINO</h1>
+          <h1 style={{ color: '#1890ff' }}>Sistema de Inventario</h1>
           <p>{needsSetup ? 'Version 3.0 - Configuracion inicial' : 'Version 3.0 - Iniciar sesion'}</p>
         </div>
 
