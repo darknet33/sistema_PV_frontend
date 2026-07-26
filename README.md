@@ -1,4 +1,4 @@
-# Sistema Rhino v3.0 — Frontend
+# Sistema de Inventario v3.0 — Frontend
 
 SPA para sistema de inventario POS.
 
@@ -21,7 +21,7 @@ SPA para sistema de inventario POS.
 ## Instalación
 
 ```bash
-cd sistema_PV_frontend
+cd frontend
 npm install
 ```
 
@@ -35,16 +35,36 @@ La aplicación corre en `http://localhost:3000` con proxy automático al backend
 
 ---
 
+## Despliegue
+
+### Vercel (Producción)
+
+- **URL**: https://frontend-xi-eight-66.vercel.app
+- **Rama**: `deploy`
+- **Configuración**: `vercel.json` con rewrites para:
+  - Proxy `/api/*` → Backend en Render
+  - Redirect SPA → `index.html` (React Router)
+
+### Deploy manual
+
+```bash
+git checkout deploy
+vercel --prod --yes
+```
+
+---
+
 ## Estructura
 
 ```
-sistema_PV_frontend/
+frontend/
 ├── src/
 │   ├── pages/             # Páginas (Login, Dashboard, etc.)
 │   ├── services/          # Llamadas API (Axios)
 │   ├── types/             # Interfaces TypeScript
 │   ├── stores/            # Estado global (Zustand)
 │   └── App.tsx            # Router + auth guard
+├── vercel.json            # Configuración de despliegue Vercel
 ├── productos.xlsx         # Plantilla para importar productos
 ├── package.json
 └── vite.config.ts
@@ -57,14 +77,20 @@ sistema_PV_frontend/
 | Ruta | Componente | Descripción |
 |------|-----------|-------------|
 | `/login` | LoginPage | Inicio de sesión |
-| `/` | DashboardPage | Layout con menú |
-| `/productos` | ProductosPage | CRUD + Excel import/export |
-| `/compras` | ComprasPage | CRUD + Anular + PDF |
-| `/ventas` | VentasPage | CRUD + Anular + PDF + impuesto/descuento |
-| `/clientes` | ClientesPage | CRUD |
-| `/proveedores` | ProveedoresPage | CRUD + soft-delete |
+| `/` | InicioPage | Dashboard |
+| `/productos/lista` | ProductosPage | CRUD + Excel import/export |
+| `/productos/categorias` | CategoriasPage | CRUD categorías |
+| `/entradas/compras` | ComprasPage | CRUD + Anular + PDF |
+| `/entradas/proveedores` | ProveedoresPage | CRUD + soft-delete |
+| `/salidas/ventas` | VentasPage | CRUD + Anular + PDF + impuesto/descuento |
+| `/salidas/clientes` | ClientesPage | CRUD |
+| `/gastos` | GastosPage | CRUD gastos |
 | `/reportes` | ReportesPage | Reportes PDF |
-| `/configuracion/*` | ConfiguracionesPage | Sub-módulos |
+| `/configuracion/usuarios` | UsuariosPage | CRUD usuarios |
+| `/configuracion/roles` | RolesPage | CRUD roles |
+| `/configuracion/modulos` | ModulosPage | CRUD módulos |
+| `/configuracion/comprobantes` | ComprobantesPage | CRUD comprobantes |
+| `/configuracion/estados` | EstadosPage | CRUD estados |
 
 ---
 
@@ -76,6 +102,7 @@ sistema_PV_frontend/
 - **N° Comprobante**: Switch Auto/Manual; por defecto Automático en Ventas
 - **Anular**: Botón amarillo si no está anulado; eliminar solo si anulado
 - **Stock**: En ventas, si la cantidad supera el stock disponible se muestra una advertencia roja; el backend rechaza la operación
-- **Precio Base**: Calculado en producto como `peso === 0 ? costo + utilidad : peso * costo + utilidad`. Columnas en tabla: Costo Bs., Utilidad Bs., Precio Base
+- **Precio Base**: Calculado en producto como `peso === 0 ? costo + utilidad : peso * costo + utilidad`
 - **Cache**: Si hay errores extraños, eliminar `node_modules/.vite`
-- **Productos.xlsx**: Plantilla base para importación (11 columnas: ÏD, Código, Categoría, Descripción, Marca, Costo Bs., Utilidad Bs., Peso Kg, Stock Inicial, Stock Mínimo, Estado)
+- **Productos.xlsx**: Plantilla base para importación (11 columnas)
+- **WebSocket**: Auto-reconexión cada 3s; rooms: `productos`, `ventas`, `compras`, `dashboard`, `reportes`
