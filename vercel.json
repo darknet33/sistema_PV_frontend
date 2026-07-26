@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://sistema-inventario-api-44kj.onrender.com/api/:path*"
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
     }
   ]
 }
