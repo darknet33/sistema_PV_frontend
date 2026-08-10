@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { useAuthStore } from '../stores/authStore'
+import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
 
 const { Header, Sider, Content } = Layout
 const { useBreakpoint } = Grid
@@ -25,8 +26,14 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
   const location = useLocation()
   const logout = useAuthStore((state) => state.logout)
   const usuario = useAuthStore((state) => state.usuario)
+  const loadEmpresa = useEmpresaStore((state) => state.loadEmpresa)
+  const { secondary } = useEmpresaColors()
   const screens = useBreakpoint()
   const isMobile = !screens.md
+
+  useEffect(() => {
+    loadEmpresa()
+  }, [loadEmpresa])
 
   const handleMenuClick = (key: string) => {
     navigate(key)
@@ -61,6 +68,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
         defaultOpenKeys={[]}
         items={menuItems}
         onClick={({ key }) => handleMenuClick(key)}
+        style={{ backgroundColor: secondary }}
       />
     </>
   )
@@ -73,7 +81,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
           placement="left"
           onClose={() => setMobileDrawerOpen(false)}
           open={mobileDrawerOpen}
-          styles={{ body: { padding: 0 } }}
+          styles={{ body: { padding: 0, backgroundColor: secondary } }}
           width={260}
         >
           <Menu
@@ -82,11 +90,11 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
             selectedKeys={[location.pathname]}
             items={menuItems}
             onClick={({ key }) => handleMenuClick(key)}
-            style={{ borderInlineEnd: 0 }}
+            style={{ borderInlineEnd: 0, backgroundColor: secondary }}
           />
         </Drawer>
       ) : (
-        <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
+        <Sider trigger={null} collapsible collapsed={collapsed} theme="dark" style={{ backgroundColor: secondary }}>
           {siderContent}
         </Sider>
       )}

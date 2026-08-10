@@ -63,9 +63,18 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
       title: 'Producto',
       key: 'producto',
       render: (_, r) => (
-        <div>
-          <span style={{ fontWeight: 500 }}>{`[${r.codigo}] ${catMap.get(r.categoria_id ?? 0) ?? ''} - ${r.descripcion}`}</span>
-          <span style={{ color: '#888', marginLeft: 8, fontSize: 12 }}>{r.marca}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {r.imagen && (
+            <img
+              src={r.imagen}
+              alt=""
+              style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+            />
+          )}
+          <div>
+            <span style={{ fontWeight: 500 }}>{`[${r.codigo}] ${catMap.get(r.categoria_id ?? 0) ?? ''} - ${r.descripcion}`}</span>
+            <span style={{ color: '#888', marginLeft: 8, fontSize: 12 }}>{r.marca}</span>
+          </div>
         </div>
       ),
     },

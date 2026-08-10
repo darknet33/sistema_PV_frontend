@@ -434,13 +434,12 @@ export default function ComprasPage() {
         </div>
       ),
     },
-    { title: 'Peso (kg)', dataIndex: 'peso', key: 'peso', width: 80, render: (val: number) => Number(val || 0).toFixed(2) },
     { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
     {
       title: 'Precio Base', key: 'precio_base', width: 100,
       render: (_, r) => {
-        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0), Number(r.peso || 0))
+        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0))
         return `Bs. ${pb.toFixed(2)}`
       },
     },

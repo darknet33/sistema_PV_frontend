@@ -53,3 +53,17 @@ export const deleteAllProductos = async (): Promise<{ message: string; count: nu
   const response = await api.delete('/productos/all')
   return response.data
 }
+
+export const uploadProductoImagen = async (id: number, file: File): Promise<{ imagen: string }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post(`/productos/${id}/imagen`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
+export const deleteProductoImagen = async (id: number): Promise<{ message: string; imagen: null }> => {
+  const response = await api.delete(`/productos/${id}/imagen`)
+  return response.data
+}

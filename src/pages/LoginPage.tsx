@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Alert, Button, Card, Form, Input, Spin, message, notification } from 'antd'
 import { LockOutlined, UserOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
+import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
 import { checkUsers } from '../services/authService'
 import type { LoginRequest, SetupAdminRequest } from '../types/auth'
 
@@ -12,9 +13,12 @@ export default function LoginPage() {
   const [needsSetup, setNeedsSetup] = useState(false)
   const login = useAuthStore((state) => state.login)
   const setupAdmin = useAuthStore((state) => state.setupAdmin)
+  const loadEmpresa = useEmpresaStore((state) => state.loadEmpresa)
+  const { primary } = useEmpresaColors()
   const navigate = useNavigate()
 
   useEffect(() => {
+    loadEmpresa()
     const verifySetup = async () => {
       try {
         const response = await checkUsers()
@@ -77,8 +81,8 @@ export default function LoginPage() {
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f0f2f5' }}>
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <h1 style={{ color: '#1890ff' }}>Sistema de Inventario</h1>
-          <p>{needsSetup ? 'Version 3.0 - Configuracion inicial' : 'Version 3.0 - Iniciar sesion'}</p>
+          <h1 style={{ color: primary }}>Sistema de Inventario</h1>
+          <p>{needsSetup ? 'Version 1.0 - Configuracion inicial' : 'Version 1.0 - Iniciar sesion'}</p>
         </div>
 
         {needsSetup ? (

@@ -4,12 +4,14 @@ export interface Producto {
   categoria_id: number
   descripcion: string
   marca: string
+  procedencia: string
   precio: number
   utilidad: number
-  peso: number
   stock_inicial: number
   stock_actual: number
   stock_minimo: number
+  stock_maximo: number
+  imagen: string | null
   usuario_id: number
   activo: boolean
   fecha_registro: string
@@ -22,12 +24,14 @@ export interface ProductoCreate {
   categoria_id: number
   descripcion: string
   marca: string
+  procedencia?: string
   precio: number
   utilidad?: number
-  peso?: number
   stock_inicial: number
   stock_actual: number
   stock_minimo: number
+  stock_maximo?: number
+  imagen?: string | null
   usuario_id: number
 }
 
@@ -35,9 +39,11 @@ export interface ProductoUpdate {
   categoria_id?: number
   descripcion?: string
   marca?: string
+  procedencia?: string
   precio?: number
   utilidad?: number
-  peso?: number
   stock_minimo?: number
+  stock_maximo?: number
+  imagen?: string | null
   activo?: boolean
 }

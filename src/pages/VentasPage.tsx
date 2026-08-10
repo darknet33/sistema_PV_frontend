@@ -30,7 +30,6 @@ interface DetalleLine {
   precio: number
   costo: number
   utilidad: number
-  peso: number
   stock_actual: number
   precioBase: number
 }
@@ -215,7 +214,7 @@ export default function VentasPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingVenta(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, peso: 0, stock_actual: 0, precioBase: 0 }])
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, precioBase: 0 }])
     setNumComprobanteAuto('')
     setAutoNum(true)
     form.resetFields()
@@ -241,8 +240,7 @@ export default function VentasPage() {
         const p = productos.find(p2 => p2.id === d.producto_id)
         const costo = Number(p?.precio || 0)
         const utilidad = Number(d.utilidad || 0)
-        const peso = Number(p?.peso || 0)
-        const precio = peso === 0 ? costo + utilidad : peso * costo + utilidad
+        const precio = costo + utilidad
         return {
           key: String(i + 1),
           producto_id: d.producto_id,
@@ -253,11 +251,10 @@ export default function VentasPage() {
           precio,
           costo,
           utilidad,
-          peso,
           stock_actual: p ? p.stock_actual : 0,
-          precioBase: calcularPrecioBase(costo, utilidad, peso),
+          precioBase: calcularPrecioBase(costo, utilidad),
         }
-      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, peso: 0, stock_actual: 0, precioBase: 0 }]
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, precioBase: 0 }]
     )
     setModalVisible(true)
   }
@@ -328,7 +325,7 @@ export default function VentasPage() {
   }
 
   const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, peso: 0, stock_actual: 0, precioBase: 0 }])
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, precioBase: 0 }])
   }
 
   const removeDetalleRow = (key: string) => {
@@ -345,11 +342,10 @@ export default function VentasPage() {
     if (selectedDetalleKey) {
       const costo = Number(producto.precio || 0)
       const utilidad = Number(producto.utilidad || 0)
-      const peso = Number(producto.peso || 0)
-      const precioBase = calcularPrecioBase(costo, utilidad, peso)
+      const precioBase = calcularPrecioBase(costo, utilidad)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
-          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: precioBase, costo, utilidad, peso, stock_actual: producto.stock_actual, precioBase }
+          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: precioBase, costo, utilidad, stock_actual: producto.stock_actual, precioBase }
           : d
       ))
     }
@@ -363,7 +359,7 @@ export default function VentasPage() {
       const updated = { ...d, [field]: value }
       if (field === 'utilidad') {
         const u = Number(value || 0)
-        updated.precio = d.peso === 0 ? d.costo + u : d.peso * d.costo + u
+        updated.precio = d.costo + u
       }
       return updated
     }))
@@ -475,13 +471,12 @@ export default function VentasPage() {
         </div>
       ),
     },
-    { title: 'Peso (kg)', dataIndex: 'peso', key: 'peso', width: 80, render: (val: number) => Number(val || 0).toFixed(2) },
     { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
     {
       title: 'Precio Base', key: 'precio_base', width: 100,
       render: (_, r) => {
-        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0), Number(r.peso || 0))
+        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0))
         return `Bs. ${pb.toFixed(2)}`
       },
     },

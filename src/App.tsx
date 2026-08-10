@@ -27,6 +27,7 @@ import ClientesPage from './pages/ClientesPage'
 import GastosPage from './pages/GastosPage'
 import ReportesPage from './pages/ReportesPage'
 import ConfiguracionesPage from './pages/configuracion/ConfiguracionesPage'
+import EmpresaPage from './pages/configuracion/EmpresaPage'
 import UsuariosPage from './pages/configuracion/UsuariosPage'
 import RolesPage from './pages/configuracion/RolesPage'
 import ModulosPage from './pages/configuracion/ModulosPage'
@@ -58,6 +59,7 @@ const MODULE_ROUTE_MAP: Record<string, string> = {
   Modulos: '/configuracion/modulos',
   Comprobantes: '/configuracion/comprobantes',
   Estados: '/configuracion/estados',
+  Empresa: '/configuracion/empresa',
 }
 
 function App() {
@@ -116,9 +118,10 @@ function App() {
       items.push(getItem('Reportes', '/reportes', <FileTextOutlined />))
     }
 
-    const hasConfigModules = ['Usuarios', 'Roles', 'Modulos', 'Comprobantes', 'Estados'].some((m) => hasModule(m))
+    const hasConfigModules = ['Usuarios', 'Roles', 'Modulos', 'Comprobantes', 'Estados', 'Empresa'].some((m) => hasModule(m))
     if (hasConfigModules) {
       const children: MenuItem[] = []
+      if (hasModule('Empresa')) children.push(getItem('Empresa', '/configuracion/empresa', <ShopOutlined />))
       if (hasModule('Usuarios')) children.push(getItem('Usuarios', '/configuracion/usuarios', <UserOutlined />))
       if (hasModule('Roles')) children.push(getItem('Roles', '/configuracion/roles', <TeamOutlined />))
       if (hasModule('Modulos')) children.push(getItem('Módulos', '/configuracion/modulos', <AppstoreOutlined />))
@@ -157,6 +160,7 @@ function App() {
         {hasAccess('/reportes') && <Route path="reportes" element={<ReportesPage />} />}
 
         <Route path="configuracion" element={<ConfiguracionesPage />}>
+          {hasAccess('/configuracion/empresa') && <Route path="empresa" element={<EmpresaPage />} />}
           {hasAccess('/configuracion/usuarios') && <Route path="usuarios" element={<UsuariosPage />} />}
           {hasAccess('/configuracion/roles') && <Route path="roles" element={<RolesPage />} />}
           <Route path="modulos" element={<ModulosPage />} />

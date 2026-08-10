@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch, Grid } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons'
+import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch, Grid, Upload, Image as AntImage } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined, UploadOutlined } from '@ant-design/icons'
+import type { UploadFile } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
-import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo, exportProductos, importProductos, deleteProductosBatch, deleteAllProductos } from '../services/productoService'
+import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo, exportProductos, importProductos, deleteProductosBatch, deleteAllProductos, uploadProductoImagen, deleteProductoImagen } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
 import type { Categoria } from '../types/categoria'
 import { calcularPrecioBase } from '../utils/pricing'
@@ -37,12 +38,13 @@ export default function ProductosPage() {
 
   const watchedCosto = Form.useWatch('precio', form)
   const watchedUtilidad = Form.useWatch('utilidad', form)
-  const watchedPeso = Form.useWatch('peso', form)
 
   const precioBaseCalculado = useMemo(() =>
-    calcularPrecioBase(Number(watchedCosto || 0), Number(watchedUtilidad || 0), Number(watchedPeso || 0)),
-    [watchedCosto, watchedUtilidad, watchedPeso]
+    calcularPrecioBase(Number(watchedCosto || 0), Number(watchedUtilidad || 0)),
+    [watchedCosto, watchedUtilidad]
   )
+
+  const [imageFileList, setImageFileList] = useState<UploadFile[]>([])
 
   const filteredProductos = useMemo(() => {
     return productos.filter((p) => {
@@ -110,15 +112,26 @@ export default function ProductosPage() {
 
   const handleSave = async (values: ProductoCreate) => {
     try {
+      let productoId = editingProducto?.id
       if (editingProducto) {
         await updateProducto(editingProducto.id, values)
         message.success('Producto actualizado')
       } else {
-        await createProducto({ ...values, stock_actual: values.stock_inicial, usuario_id: 1 })
+        const created = await createProducto({ ...values, stock_actual: values.stock_inicial, usuario_id: 1 })
+        productoId = created.id
         message.success('Producto creado')
+      }
+      if (productoId) {
+        const pendingFile = imageFileList.find((f) => f.originFileObj)
+        if (pendingFile?.originFileObj) {
+          await uploadProductoImagen(productoId, pendingFile.originFileObj as File)
+        } else if (editingProducto?.imagen && imageFileList.length === 0) {
+          await deleteProductoImagen(productoId)
+        }
       }
       setModalVisible(false)
       form.resetFields()
+      setImageFileList([])
       loadProductos()
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al guardar')
@@ -273,24 +286,34 @@ export default function ProductosPage() {
           </div>
         ),
       },
-      { title: 'Peso', dataIndex: 'peso', key: 'peso', render: (val) => `${Number(val || 0).toFixed(2)} kg` },
+      {
+        title: 'Imagen',
+        key: 'imagen',
+        width: 70,
+        render: (_, r) =>
+          r.imagen ? <AntImage src={r.imagen} width={40} height={40} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <span className="text-gray-300">-</span>,
+      },
+      { title: 'Procedencia', dataIndex: 'procedencia', key: 'procedencia', render: (val) => val || '-' },
       { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
       { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
       { title: 'Precio Base', key: 'precio_base', render: (_, r) =>
-        `Bs. ${calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0), Number(r.peso || 0)).toFixed(2)}` },
+        `Bs. ${calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0)).toFixed(2)}` },
       { title: 'Usuario', dataIndex: 'usuario_nombre', key: 'usuario_nombre' },
       { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', render: (val: number, record: Producto) => {
         const bajo = val < (record.stock_minimo || 0)
-        return <Tag color={bajo ? 'red' : 'default'}>{val ?? 0}{bajo ? ' ⚠️' : ''}</Tag>
+        const alto = val > (record.stock_maximo || 0) && (record.stock_maximo || 0) > 0
+        const color = bajo ? 'red' : alto ? 'gold' : 'default'
+        return <Tag color={color}>{val ?? 0}{bajo ? ' ⚠️' : alto ? ' ⬆' : ''}</Tag>
       }},
       { title: 'Stock Mínimo', dataIndex: 'stock_minimo', key: 'stock_minimo', render: (val: number) => val ?? 0 },
+      { title: 'Stock Máximo', dataIndex: 'stock_maximo', key: 'stock_maximo', render: (val: number) => val ?? 0 },
       { title: 'Estado', dataIndex: 'activo', key: 'activo', render: (activo: boolean, record: Producto) => (
         <Switch checked={activo} onChange={() => handleToggleActivo(record.id)} size="small" />
       )},
       {
         title: 'Acciones', key: 'acciones', render: (_, record) => (
           <div className="flex gap-1">
-            <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setModalVisible(true) }} />
+            <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setImageFileList(record.imagen ? [{ uid: '-1', name: 'imagen', status: 'done', url: record.imagen }] : []); setModalVisible(true) }} />
             <Popconfirm title="¿Eliminar producto?" onConfirm={() => handleDelete(record.id)}>
               <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
             </Popconfirm>
@@ -331,7 +354,7 @@ export default function ProductosPage() {
         <Button icon={<ImportOutlined />} size={isMobile ? 'small' : 'middle'} loading={importing} onClick={() => fileInputRef.current?.click()}>
           Importar
         </Button>
-        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingProducto(null); form.resetFields(); setModalVisible(true) }}>
+        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingProducto(null); form.resetFields(); setImageFileList([]); setModalVisible(true) }}>
           Nuevo Producto
         </Button>
       </PageHeader>
@@ -395,7 +418,7 @@ export default function ProductosPage() {
           }}
         />
       </Spin>
-      <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={() => form.submit()} className="responsive-modal" width={isMobile ? '95%' : 600}>
+      <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => { setModalVisible(false); setImageFileList([]) }} onOk={() => form.submit()} className="responsive-modal" width={isMobile ? '95%' : 600}>
         {editingProducto && (
           <div className="mb-4 p-3 bg-gray-50 rounded">
             <div className="flex flex-col sm:flex-row gap-4 text-sm">
@@ -411,6 +434,9 @@ export default function ProductosPage() {
             </Form.Item>
             <Form.Item name="marca" label="Marca" rules={[{ required: true }]} className="flex-1 min-w-[130px]">
               <Input />
+            </Form.Item>
+            <Form.Item name="procedencia" label="Procedencia" className="flex-1 min-w-[160px]">
+              <Input placeholder="Origen del producto" />
             </Form.Item>
             <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]} className="flex-1 min-w-[160px]">
               <Select
@@ -439,9 +465,6 @@ export default function ProductosPage() {
             <Form.Item name="utilidad" label="Utilidad Bs." initialValue={0} className="flex-1 min-w-[110px]">
               <InputNumber min={0} step={0.01} prefix="Bs." className="w-full" />
             </Form.Item>
-            <Form.Item name="peso" label="Peso (kg)" className="flex-1 min-w-[90px]">
-              <InputNumber min={0} step={0.01} className="w-full" />
-            </Form.Item>
             <Form.Item label="Precio Base" className="flex-1 min-w-[110px]">
               <InputNumber
                 className="w-full"
@@ -459,7 +482,27 @@ export default function ProductosPage() {
             <Form.Item name="stock_minimo" label="Stock Mínimo" rules={[{ required: true }]} className="flex-1 min-w-[130px]">
               <InputNumber min={0} className="w-full" />
             </Form.Item>
+            <Form.Item name="stock_maximo" label="Stock Máximo" className="flex-1 min-w-[130px]">
+              <InputNumber min={0} className="w-full" />
+            </Form.Item>
           </div>
+          <Form.Item label="Imagen del producto">
+            <Upload
+              listType="picture-card"
+              maxCount={1}
+              fileList={imageFileList}
+              accept=".jpg,.jpeg,.png,.gif,.webp"
+              beforeUpload={() => false}
+              onChange={({ fileList }) => setImageFileList(fileList)}
+            >
+              {imageFileList.length >= 1 ? null : (
+                <div>
+                  <UploadOutlined />
+                  <div style={{ marginTop: 4 }}>Subir imagen</div>
+                </div>
+              )}
+            </Upload>
+          </Form.Item>
         </Form>
       </Modal>
 
