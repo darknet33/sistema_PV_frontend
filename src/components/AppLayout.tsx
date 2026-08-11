@@ -27,6 +27,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
   const logout = useAuthStore((state) => state.logout)
   const usuario = useAuthStore((state) => state.usuario)
   const loadEmpresa = useEmpresaStore((state) => state.loadEmpresa)
+  const empresa = useEmpresaStore((state) => state.empresa)
   const { secondary } = useEmpresaColors()
   const screens = useBreakpoint()
   const isMobile = !screens.md
@@ -58,8 +59,12 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
 
   const siderContent = (
     <>
-      <div className="h-16 flex items-center justify-center text-white font-bold text-xl">
-        {!isMobile && !collapsed && 'Sistema de Inventario'}
+      <div className="h-16 flex items-center justify-center text-white font-bold text-xl overflow-hidden px-2">
+        {empresa?.logo ? (
+          <img src={empresa.logo} alt="Logo" className="max-h-12 max-w-full object-contain" />
+        ) : (
+          !isMobile && !collapsed && 'Sistema de Inventario'
+        )}
       </div>
       <Menu
         theme="dark"
@@ -77,7 +82,13 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
     <Layout className="min-h-screen">
       {isMobile ? (
         <Drawer
-          title="Sistema de Inventario"
+          title={
+            empresa?.logo ? (
+              <img src={empresa.logo} alt="Logo" style={{ maxHeight: 40, maxWidth: '100%', objectFit: 'contain' }} />
+            ) : (
+              'Sistema de Inventario'
+            )
+          }
           placement="left"
           onClose={() => setMobileDrawerOpen(false)}
           open={mobileDrawerOpen}
