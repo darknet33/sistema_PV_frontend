@@ -8,8 +8,10 @@ export interface Empresa {
   direccion: string
   ciudad: string
   logo: string | null
+  imagen_encabezado: string | null
+  imagen_pie: string | null
   color_principal: string
   color_secundario: string
 }
 
-export type EmpresaUpdate = Omit<Empresa, 'id' | 'logo'>
+export type EmpresaUpdate = Omit<Empresa, 'id' | 'logo' | 'imagen_encabezado' | 'imagen_pie'>

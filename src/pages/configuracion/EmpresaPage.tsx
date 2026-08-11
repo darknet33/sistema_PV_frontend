@@ -3,11 +3,50 @@ import { Card, Form, Input, Button, Upload, ColorPicker, Grid, message } from 'a
 import { UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd/es/upload/interface'
 import PageHeader from '../../components/PageHeader'
-import { getEmpresa, updateEmpresa, uploadEmpresaLogo, deleteEmpresaLogo } from '../../services/empresaService'
+import {
+  getEmpresa,
+  updateEmpresa,
+  uploadEmpresaLogo,
+  deleteEmpresaLogo,
+  uploadEmpresaImagenEncabezado,
+  deleteEmpresaImagenEncabezado,
+  uploadEmpresaImagenPie,
+  deleteEmpresaImagenPie,
+} from '../../services/empresaService'
 import { useEmpresaStore, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../stores/empresaStore'
 import type { EmpresaUpdate } from '../../types/empresa'
 
 const { useBreakpoint } = Grid
+
+function ImagenUpload({
+  label,
+  fileList,
+  setFileList,
+}: {
+  label: string
+  fileList: UploadFile[]
+  setFileList: (files: UploadFile[]) => void
+}) {
+  return (
+    <div className="flex flex-col items-center">
+      <Upload
+        listType="picture-card"
+        maxCount={1}
+        fileList={fileList}
+        accept=".jpg,.jpeg,.png,.gif,.webp"
+        beforeUpload={() => false}
+        onChange={({ fileList }) => setFileList(fileList)}
+      >
+        {fileList.length >= 1 ? null : (
+          <div>
+            <UploadOutlined />
+            <div style={{ marginTop: 4 }}>{label}</div>
+          </div>
+        )}
+      </Upload>
+    </div>
+  )
+}
 
 export default function EmpresaPage() {
   const [form] = Form.useForm()
@@ -18,6 +57,8 @@ export default function EmpresaPage() {
   const setEmpresa = useEmpresaStore((state) => state.setEmpresa)
 
   const [logoFileList, setLogoFileList] = useState<UploadFile[]>([])
+  const [encabezadoFileList, setEncabezadoFileList] = useState<UploadFile[]>([])
+  const [pieFileList, setPieFileList] = useState<UploadFile[]>([])
   const [colorPrincipal, setColorPrincipal] = useState(DEFAULT_PRIMARY)
   const [colorSecundario, setColorSecundario] = useState(DEFAULT_SECONDARY)
   const [saving, setSaving] = useState(false)
@@ -44,6 +85,16 @@ export default function EmpresaPage() {
           ? [{ uid: '-1', name: 'logo', status: 'done', url: empresa.logo }]
           : []
       )
+      setEncabezadoFileList(
+        empresa.imagen_encabezado
+          ? [{ uid: '-2', name: 'encabezado', status: 'done', url: empresa.imagen_encabezado }]
+          : []
+      )
+      setPieFileList(
+        empresa.imagen_pie
+          ? [{ uid: '-3', name: 'pie', status: 'done', url: empresa.imagen_pie }]
+          : []
+      )
     }
   }, [empresa, form])
 
@@ -59,11 +110,25 @@ export default function EmpresaPage() {
       setSaving(true)
       await updateEmpresa(data)
 
-      const pending = logoFileList.find((f) => f.originFileObj)
-      if (pending?.originFileObj) {
-        await uploadEmpresaLogo(pending.originFileObj as File)
+      const pendingLogo = logoFileList.find((f) => f.originFileObj)
+      if (pendingLogo?.originFileObj) {
+        await uploadEmpresaLogo(pendingLogo.originFileObj as File)
       } else if (empresa?.logo && logoFileList.length === 0) {
         await deleteEmpresaLogo()
+      }
+
+      const pendingEncabezado = encabezadoFileList.find((f) => f.originFileObj)
+      if (pendingEncabezado?.originFileObj) {
+        await uploadEmpresaImagenEncabezado(pendingEncabezado.originFileObj as File)
+      } else if (empresa?.imagen_encabezado && encabezadoFileList.length === 0) {
+        await deleteEmpresaImagenEncabezado()
+      }
+
+      const pendingPie = pieFileList.find((f) => f.originFileObj)
+      if (pendingPie?.originFileObj) {
+        await uploadEmpresaImagenPie(pendingPie.originFileObj as File)
+      } else if (empresa?.imagen_pie && pieFileList.length === 0) {
+        await deleteEmpresaImagenPie()
       }
 
       const final = await getEmpresa()
@@ -86,22 +151,23 @@ export default function EmpresaPage() {
         styles={{ title: { textTransform: 'uppercase', fontSize: 16 } }}
       >
         <div className="flex flex-wrap gap-6">
-          <div className="w-full md:w-[180px] flex flex-col items-center">
-            <Upload
-              listType="picture-card"
-              maxCount={1}
-              fileList={logoFileList}
-              accept=".jpg,.jpeg,.png,.gif,.webp"
-              beforeUpload={() => false}
-              onChange={({ fileList }) => setLogoFileList(fileList)}
-            >
-              {logoFileList.length >= 1 ? null : (
-                <div>
-                  <UploadOutlined />
-                  <div style={{ marginTop: 4 }}>Logo</div>
-                </div>
-              )}
-            </Upload>
+          <div className="flex flex-col items-center gap-4 w-full md:w-[180px]">
+            <div className="flex flex-col items-center">
+              <ImagenUpload label="Logo" fileList={logoFileList} setFileList={setLogoFileList} />
+              <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>Logo</div>
+            </div>
+            <div className="flex flex-col items-center">
+              <ImagenUpload
+                label="Encabezado"
+                fileList={encabezadoFileList}
+                setFileList={setEncabezadoFileList}
+              />
+              <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>Encabezado de documentos</div>
+            </div>
+            <div className="flex flex-col items-center">
+              <ImagenUpload label="Pie de página" fileList={pieFileList} setFileList={setPieFileList} />
+              <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>Pie de página de documentos</div>
+            </div>
           </div>
 
           <Form form={form} layout="vertical" className="flex-1 min-w-[280px]">

@@ -24,3 +24,31 @@ export const deleteEmpresaLogo = async (): Promise<{ message: string; logo: null
   const response = await api.delete<{ message: string; logo: null }>('/empresa/logo')
   return response.data
 }
+
+export const uploadEmpresaImagenEncabezado = async (file: File): Promise<{ imagen_encabezado: string }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post<{ imagen_encabezado: string }>('/empresa/imagen-encabezado', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
+export const deleteEmpresaImagenEncabezado = async (): Promise<{ message: string; imagen_encabezado: null }> => {
+  const response = await api.delete<{ message: string; imagen_encabezado: null }>('/empresa/imagen-encabezado')
+  return response.data
+}
+
+export const uploadEmpresaImagenPie = async (file: File): Promise<{ imagen_pie: string }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post<{ imagen_pie: string }>('/empresa/imagen-pie', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
+export const deleteEmpresaImagenPie = async (): Promise<{ message: string; imagen_pie: null }> => {
+  const response = await api.delete<{ message: string; imagen_pie: null }>('/empresa/imagen-pie')
+  return response.data
+}
