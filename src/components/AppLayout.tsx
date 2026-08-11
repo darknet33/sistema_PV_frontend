@@ -28,7 +28,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
   const usuario = useAuthStore((state) => state.usuario)
   const loadEmpresa = useEmpresaStore((state) => state.loadEmpresa)
   const empresa = useEmpresaStore((state) => state.empresa)
-  const { secondary } = useEmpresaColors()
+  const { primary, secondary } = useEmpresaColors()
   const screens = useBreakpoint()
   const isMobile = !screens.md
 
@@ -69,6 +69,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
       <Menu
         theme="dark"
         mode="inline"
+        className="menu-icons-primary"
         selectedKeys={[location.pathname]}
         defaultOpenKeys={[]}
         items={menuItems}
@@ -80,6 +81,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
 
   return (
     <Layout className="min-h-screen">
+      <style>{`.menu-icons-primary .ant-menu-item-icon { color: ${primary} !important; }`}</style>
       {isMobile ? (
         <Drawer
           title={
@@ -98,6 +100,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
           <Menu
             theme="dark"
             mode="inline"
+            className="menu-icons-primary"
             selectedKeys={[location.pathname]}
             items={menuItems}
             onClick={({ key }) => handleMenuClick(key)}
