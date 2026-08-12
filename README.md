@@ -21,7 +21,7 @@ SPA para sistema de inventario POS.
 ## Instalación
 
 ```bash
-cd sistema_PV_frontend
+cd frontend
 npm install
 ```
 
@@ -31,40 +31,99 @@ npm install
 npm run dev
 ```
 
-La aplicación corre en `http://localhost:3000` con proxy automático al backend en `localhost:8000`.
+La aplicación corre en `http://localhost:3000` con proxy automático al backend en `localhost:8000` (`vite.config.ts` con `ws: true` para WebSocket).
 
 ---
 
 ## Estructura
 
 ```
-sistema_PV_frontend/
+frontend/
 ├── src/
-│   ├── pages/             # Páginas (Login, Dashboard, etc.)
-│   ├── services/          # Llamadas API (Axios)
-│   ├── types/             # Interfaces TypeScript
-│   ├── stores/            # Estado global (Zustand)
-│   └── App.tsx            # Router + auth guard
-├── productos.xlsx         # Plantilla para importar productos
+│   ├── pages/                    # Páginas (17)
+│   │   ├── configuracion/        # Empresa, Usuarios, Roles, Módulos, Comprobantes, Estados
+│   │   └── productos/            # CategoriasPage
+│   ├── components/               # UI reutilizable
+│   ├── hooks/                    # useCrud, useFilters, useRealtimeRefresh
+│   ├── services/                 # Llamadas API (Axios) + websocket
+│   ├── stores/                   # Estado global (authStore, empresaStore)
+│   ├── types/                    # Interfaces TypeScript
+│   └── utils/                    # format, pricing, download
 ├── package.json
 └── vite.config.ts
 ```
 
+### Componentes
+
+| Componente | Uso |
+|------------|-----|
+| `AppLayout.tsx` | Layout con menú lateral (logo empresa, items por módulos) |
+| `SideNav.tsx` | Navegación lateral |
+| `PageHeader.tsx` | Encabezado de página con título y acciones |
+| `CrudModal.tsx` / `CrudPage.tsx` | Patrón CRUD genérico (tabla + modal) |
+| `ResponsiveTable.tsx` | Tabla responsive (cards en móvil, tabla en escritorio) |
+| `SubCrudModal.tsx` / `SubCrudSelect.tsx` | Select + modal CRUD embebido (crear/editar registros sin salir del formulario) |
+| `ProductoSelectorModal.tsx` | Selector de producto con búsqueda (código, descripción, marca, categoría) |
+
+### Hooks
+
+| Hook | Uso |
+|------|-----|
+| `useRealtimeRefresh(room, onRefresh)` | Suscripción WebSocket con auto-reconnect (3s) |
+| `useCrud` | Lógica CRUD reutilizable |
+| `useFilters` | Filtros (texto, rango de fechas, tags) |
+
 ---
 
-## Páginas
+## Rutas
 
 | Ruta | Componente | Descripción |
 |------|-----------|-------------|
-| `/login` | LoginPage | Inicio de sesión |
-| `/` | DashboardPage | Layout con menú |
-| `/productos` | ProductosPage | CRUD + Excel import/export |
-| `/compras` | ComprasPage | CRUD + Anular + PDF |
-| `/ventas` | VentasPage | CRUD + Anular + PDF + impuesto/descuento |
-| `/clientes` | ClientesPage | CRUD |
-| `/proveedores` | ProveedoresPage | CRUD + soft-delete |
+| `/login` | LoginPage | Inicio de sesión (redirige a `/` si autenticado) |
+| `/` | InicioPage | Dashboard con menú |
+| `/productos/lista` | ProductosPage | CRUD + Excel import/export + imágenes |
+| `/productos/categorias` | CategoriasPage | CRUD categorías |
+| `/entradas/compras` | ComprasPage | CRUD + Anular + PDF |
+| `/entradas/proveedores` | ProveedoresPage | CRUD + soft-delete |
+| `/salidas/ventas` | VentasPage | CRUD + Anular + PDF + impuesto/descuento |
+| `/cotizaciones` | CotizacionesPage | CRUD cotizaciones + PDF + convertir en venta |
+| `/salidas/clientes` | ClientesPage | CRUD |
+| `/gastos` | GastosPage | Gastos |
 | `/reportes` | ReportesPage | Reportes PDF |
-| `/configuracion/*` | ConfiguracionesPage | Sub-módulos |
+| `/configuracion` | ConfiguracionesPage | Sub-módulos |
+| `/configuracion/empresa` | EmpresaPage | Datos empresa, logo, encabezado, pie, colores |
+| `/configuracion/usuarios` | UsuariosPage | CRUD usuarios |
+| `/configuracion/roles` | RolesPage | CRUD roles |
+| `/configuracion/modulos` | ModulosPage | CRUD módulos |
+| `/configuracion/comprobantes` | ComprobantesPage | CRUD |
+| `/configuracion/estados` | EstadosPage | CRUD |
+
+Las rutas se protegen con `hasAccess(path)` (compara contra los módulos del usuario vía `MODULE_ROUTE_MAP`).
+
+---
+
+## Módulo Cotizaciones
+
+Archivos clave:
+
+| Archivo | Rol |
+|---------|-----|
+| `pages/CotizacionesPage.tsx` | Página principal |
+| `services/cotizacionService.ts` | Llamadas a `/api/cotizaciones` |
+| `types/cotizacion.ts` | Interfaces `CotizacionCreate`, `CotizacionUpdate`, `ConvertirVentaRequest` |
+| `reports/cotizacion_single.py` (backend) | PDF |
+
+Flujo:
+1. **Crear**: cliente, fecha, validez (días, default 15), `con_factura` (IVA 13%), `incluir_imagenes`, modalidad de pago, términos y condiciones + detalle de líneas (producto, cantidad, costo, utilidad % → precio de venta calculado).
+2. **Confirmar**: pasa a `Confirmado` (solo desde `Enviado`).
+3. **Convertir en venta**: selecciona comprobante y estado → crea la venta (descuenta stock, IVA si `con_factura`).
+4. **PDF**: descarga o vista previa (`/pdf` y `/pdf/preview`).
+
+Convenciones específicas:
+- IVA 13% si `con_factura` (backend calcula y envía `subtotal`, `iva`, `total`).
+- Estados: `Enviado` (tags), `Confirmado`, `Vencido` (automático si pasó `fecha_vencimiento`).
+- `COT-{id:06d}`: número generado por el backend.
+- El selector de producto reutiliza `ProductoSelectorModal`; los selects de cliente/comprobante/estado usan `SubCrudSelect`.
 
 ---
 
@@ -78,4 +137,6 @@ sistema_PV_frontend/
 - **Stock**: En ventas, si la cantidad supera el stock disponible se muestra una advertencia roja; el backend rechaza la operación
 - **Precio Base**: Calculado en producto como `peso === 0 ? costo + utilidad : peso * costo + utilidad`. Columnas en tabla: Costo Bs., Utilidad Bs., Precio Base
 - **Cache**: Si hay errores extraños, eliminar `node_modules/.vite`
-- **Productos.xlsx**: Plantilla base para importación (11 columnas: ÏD, Código, Categoría, Descripción, Marca, Costo Bs., Utilidad Bs., Peso Kg, Stock Inicial, Stock Mínimo, Estado)
+- **Logo empresa**: el menú y el login usan `empresa.logo`; al re-subir el logo en Configuración > Empresa el navegador puede seguir mostrando la imagen anterior por caché (misma URL `/uploads/empresa/logo.png`) — abrir en otra pestaña o limpiar caché
+- **Productos.xlsx**: Plantilla base para importación (12 columnas: ÏD, Código, Categoría, Descripción, Marca, Procedencia, Costo Bs., Utilidad Bs., Stock Inicial, Stock Mínimo, Stock Máximo, Estado)
+- **WebSocket**: salas `productos`, `ventas`, `compras`, `dashboard`, `reportes`, `cotizaciones`

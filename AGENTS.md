@@ -124,6 +124,7 @@ Used in ComprasPage (Proveedores, Comprobantes, Estados) and VentasPage (Cliente
 - **Decimal handling**: Backend sends Decimal as string; wrap with `Number(val || 0)` to avoid `.toFixed is not a function`
 - **Date handling**: Day.js throughout; `startOf('day')` / `endOf('day')` for range filter comparisons
 - **Vite stale cache**: Delete `node_modules/.vite` if puzzling errors appear
+- **Imágenes de empresa (logo/encabezado/pie)**: el menú (`AppLayout.tsx`) y el login (`LoginPage.tsx`) muestran `empresa.logo`. El backend guarda las imágenes siempre con el mismo nombre (`/uploads/empresa/logo.png`), por lo que al re-subir el navegador puede seguir mostrando la imagen anterior (misma URL → caché). Workaround actual: abrir en otra pestaña/incógnito o limpiar caché. Fix recomendado (pendiente de implementar): cache-busting con `?v=timestamp` en los `<img>` o nombres de archivo únicos por subida en el backend.
 - **User ID**: Hardcoded as `1` in create endpoints (matching backend)
 - **Auto/Manual N° Comprobante**: Switch in create form with `checkedChildren="A"` / `unCheckedChildren="M"`; `Space.Compact` wrapper (not deprecated `addonAfter`)
 - **Edit mode**: Cliente/Proveedor, Comprobante, and N° Comprobante are readonly; `autoNum` forced to false

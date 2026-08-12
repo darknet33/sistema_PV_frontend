@@ -23,6 +23,7 @@ import CategoriasPage from './pages/productos/CategoriasPage'
 import ComprasPage from './pages/ComprasPage'
 import ProveedoresPage from './pages/ProveedoresPage'
 import VentasPage from './pages/VentasPage'
+import CotizacionesPage from './pages/CotizacionesPage'
 import ClientesPage from './pages/ClientesPage'
 import GastosPage from './pages/GastosPage'
 import ReportesPage from './pages/ReportesPage'
@@ -52,6 +53,7 @@ const MODULE_ROUTE_MAP: Record<string, string> = {
   Compras: '/entradas/compras',
   Proveedores: '/entradas/proveedores',
   Ventas: '/salidas/ventas',
+  Cotizaciones: '/cotizaciones',
   Clientes: '/salidas/clientes',
   Reportes: '/reportes',
   Usuarios: '/configuracion/usuarios',
@@ -108,6 +110,7 @@ function App() {
     if (hasAny('Ventas', 'Clientes')) {
       const children: MenuItem[] = []
       if (hasModule('Ventas')) children.push(getItem('Ventas', '/salidas/ventas', <ShopOutlined />))
+      if (hasModule('Cotizaciones')) children.push(getItem('Cotizaciones', '/cotizaciones', <FileTextOutlined />))
       if (hasModule('Clientes')) children.push(getItem('Clientes', '/salidas/clientes', <TeamOutlined />))
       items.push(getItem('Salidas', 'salidas-group', <ShopOutlined />, children))
     }
@@ -154,6 +157,7 @@ function App() {
         {hasAccess('/entradas/compras') && <Route path="entradas/compras" element={<ComprasPage />} />}
         {hasAccess('/entradas/proveedores') && <Route path="entradas/proveedores" element={<ProveedoresPage />} />}
         {hasAccess('/salidas/ventas') && <Route path="salidas/ventas" element={<VentasPage />} />}
+        {hasAccess('/cotizaciones') && <Route path="cotizaciones" element={<CotizacionesPage />} />}
         {hasAccess('/salidas/clientes') && <Route path="salidas/clientes" element={<ClientesPage />} />}
 
         <Route path="gastos" element={<GastosPage />} />

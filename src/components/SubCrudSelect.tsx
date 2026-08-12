@@ -9,7 +9,7 @@ interface SubCrudSelectProps {
   value?: number | null
   onChange?: (value: number | null) => void
   options: { value: number; label: string }[]
-  modalProps: SubCrudModalProps
+  modalProps: Omit<SubCrudModalProps, 'visible' | 'onCancel'>
 }
 
 export default function SubCrudSelect({ placeholder, value, onChange, options, modalProps }: SubCrudSelectProps) {
