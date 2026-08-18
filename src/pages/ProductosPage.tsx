@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch, Grid, Upload, Image as AntImage } from 'antd'
+import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Tag, Spin, Switch, Grid, Upload, Image as AntImage } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined, UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -11,6 +11,7 @@ import { calcularPrecioBase } from '../utils/pricing'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
+import SubCrudSelect from '../components/SubCrudSelect'
 
 const { useBreakpoint } = Grid
 
@@ -21,10 +22,6 @@ export default function ProductosPage() {
   const [modalVisible, setModalVisible] = useState(false)
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null)
   const [form] = Form.useForm()
-
-  const [catModalVisible, setCatModalVisible] = useState(false)
-  const [catForm] = Form.useForm()
-  const [editingCategoria, setEditingCategoria] = useState<Categoria | null>(null)
 
   const [filterCategoria, setFilterCategoria] = useState<number | undefined>(undefined)
   const [searchText, setSearchText] = useState('')
@@ -216,61 +213,6 @@ export default function ProductosPage() {
     }
   }
 
-  const handleOpenCatModal = (record?: Categoria) => {
-    if (record) {
-      setEditingCategoria(record)
-      catForm.setFieldsValue(record)
-    } else {
-      setEditingCategoria(null)
-      catForm.resetFields()
-    }
-    setCatModalVisible(true)
-  }
-
-  const handleSaveCategoria = async () => {
-    try {
-      const values = await catForm.validateFields()
-      if (editingCategoria) {
-        await categoriaService.update(editingCategoria.id, values)
-        message.success('Categoría actualizada')
-      } else {
-        await categoriaService.create(values)
-        message.success('Categoría creada')
-      }
-      setCatModalVisible(false)
-      loadCategorias()
-    } catch {
-      message.error('Error al guardar categoría')
-    }
-  }
-
-  const handleDeleteCategoria = async (id: number) => {
-    try {
-      await categoriaService.delete(id)
-      message.success('Categoría eliminada')
-      loadCategorias()
-    } catch {
-      message.error('Error al eliminar categoría')
-    }
-  }
-
-  const catColumns: ColumnsType<Categoria> = useMemo(() => [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    {
-      title: 'Acciones',
-      width: 140,
-      render: (_: unknown, record: Categoria) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenCatModal(record)} />
-          <Popconfirm title="¿Eliminar categoría?" onConfirm={() => handleDeleteCategoria(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ], [])
-
   const columns: ColumnsType<Producto> = useMemo(() => {
     const catMap = new Map<number, string>()
     categorias.forEach((c) => catMap.set(c.id, c.nombre))
@@ -439,19 +381,18 @@ export default function ProductosPage() {
               <Input placeholder="Origen del producto" />
             </Form.Item>
             <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]} className="flex-1 min-w-[160px]">
-              <Select
+              <SubCrudSelect
                 placeholder="Seleccione una categoría"
                 options={catSelectOptions}
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <div className="p-2 border-t border-gray-100">
-                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => handleOpenCatModal()}>
-                        Gestionar categorías
-                      </Button>
-                    </div>
-                  </>
-                )}
+                modalProps={{
+                  title: 'Categorías',
+                  fetchAll: categoriaService.getAll,
+                  create: categoriaService.create,
+                  update: categoriaService.update,
+                  remove: categoriaService.delete,
+                  fields: [{ name: 'nombre', label: 'Nombre' }],
+                  onDataChange: (list) => setCategorias(list),
+                }}
               />
             </Form.Item>
           </div>
@@ -504,26 +445,6 @@ export default function ProductosPage() {
             </Upload>
           </Form.Item>
         </Form>
-      </Modal>
-
-      <Modal
-        title={editingCategoria ? 'Editar Categoría' : 'Nueva Categoría'}
-        open={catModalVisible}
-        onCancel={() => setCatModalVisible(false)}
-        onOk={handleSaveCategoria}
-        className="responsive-modal"
-      >
-        <Form form={catForm} layout="vertical" className="mb-4">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input placeholder="Nombre de la categoría" />
-          </Form.Item>
-        </Form>
-        <ResponsiveTable
-          columns={catColumns}
-          dataSource={categorias}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-        />
       </Modal>
     </div>
   )

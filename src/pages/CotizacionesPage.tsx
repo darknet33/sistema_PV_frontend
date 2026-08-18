@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, message, Tag, Input, Switch, Grid, Checkbox, Descriptions, Space } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, message, Tag, Input, Switch, Grid, Checkbox, Card, Space, Select } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, EyeOutlined,
+  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined,
   CheckOutlined, ShoppingCartOutlined, ProfileOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -10,8 +10,9 @@ import dayjs from 'dayjs'
 import type { Cotizacion, CotizacionCreate } from '../types/cotizacion'
 import {
   getCotizaciones, createCotizacion, updateCotizacion, deleteCotizacion, confirmarCotizacion,
-  convertirCotizacionEnVenta, downloadCotizacionPdf, previewCotizacionPdf,
+  convertirCotizacionEnVenta, fetchCotizacionPdfBlob,
 } from '../services/cotizacionService'
+import usePdfPreview from '../hooks/usePdfPreview'
 import { getClientes, createCliente, updateCliente, deleteCliente } from '../services/clienteService'
 import comprobanteService from '../services/comprobanteService'
 import estadoService from '../services/estadoService'
@@ -27,7 +28,9 @@ import SubCrudSelect from '../components/SubCrudSelect'
 
 const { useBreakpoint } = Grid
 
-const IVA_RATE = 13
+const IVA_RATE = 16
+
+const FORMA_PAGO_OPTIONS = ['Transferencia SIGEP', 'Cheque', 'Al contado']
 
 interface DetalleLine {
   key: string
@@ -56,6 +59,7 @@ function calcularPrecioVenta(costo: number, pct: number): number {
 export default function CotizacionesPage() {
   const screens = useBreakpoint()
   const isMobile = !screens.md
+  const { openPdf, previewModal } = usePdfPreview()
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
@@ -198,7 +202,7 @@ export default function CotizacionesPage() {
     setEditingCotizacion(null)
     setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0 }])
     form.resetFields()
-    form.setFieldsValue({ con_factura: false, incluir_imagenes: false, validez_dias: 15 })
+    form.setFieldsValue({ con_factura: false, incluir_imagenes: false, validez_dias: 15, descuento: 0 })
     setModalVisible(true)
   }
 
@@ -211,8 +215,10 @@ export default function CotizacionesPage() {
       con_factura: cot.con_factura,
       incluir_imagenes: cot.incluir_imagenes,
       modalidad_pago: cot.modalidad_pago || '',
+      forma_pago: cot.forma_pago || '',
       validez_dias: cot.validez_dias,
       terminos_condiciones: cot.terminos_condiciones || '',
+      descuento: Number(cot.descuento || 0),
     })
     setDetalles(
       cot.detalles?.map((d, i) => ({
@@ -245,8 +251,10 @@ export default function CotizacionesPage() {
         con_factura: values.con_factura || false,
         incluir_imagenes: values.incluir_imagenes || false,
         modalidad_pago: values.modalidad_pago || '',
+        forma_pago: values.forma_pago || '',
         validez_dias: values.validez_dias || 15,
         terminos_condiciones: values.terminos_condiciones || '',
+        descuento: values.descuento || 0,
         detalles: validDetalles.map((d) => ({
           producto_id: d.producto_id!,
           cantidad: d.cantidad,
@@ -342,7 +350,9 @@ export default function CotizacionesPage() {
   const watchedFecha = Form.useWatch('fecha', form)
   const watchedValidez = Form.useWatch('validez_dias', form)
   const watchedConFactura = Form.useWatch('con_factura', form)
+  const watchedDescuento = Form.useWatch('descuento', form)
   const conFactura = !!watchedConFactura
+  const descuentoPct = Number(watchedDescuento || 0)
 
   const fechaVencimiento = useMemo(() => {
     if (!watchedFecha) return null
@@ -357,25 +367,16 @@ export default function CotizacionesPage() {
     return conFactura ? Math.round(subtotalCalculado * IVA_RATE) / 100 : 0
   }, [subtotalCalculado, conFactura])
 
+  const descuentoCalculado = useMemo(() => {
+    return Math.round(subtotalCalculado * descuentoPct) / 100
+  }, [subtotalCalculado, descuentoPct])
+
   const totalCalculado = useMemo(() => {
-    return Math.round((subtotalCalculado + ivaCalculado) * 100) / 100
-  }, [subtotalCalculado, ivaCalculado])
+    return Math.round((subtotalCalculado + ivaCalculado - descuentoCalculado) * 100) / 100
+  }, [subtotalCalculado, ivaCalculado, descuentoCalculado])
 
-  const handleDownloadPdf = async (id: number) => {
-    try {
-      await downloadCotizacionPdf(id)
-      message.success('PDF descargado')
-    } catch {
-      message.error('Error al generar PDF')
-    }
-  }
-
-  const handlePreviewPdf = async (id: number) => {
-    try {
-      await previewCotizacionPdf(id)
-    } catch {
-      message.error('Error al generar PDF')
-    }
+  const handlePdfPreview = async (id: number) => {
+    await openPdf(() => fetchCotizacionPdfBlob(id), `Cotización #${id}`, `cotizacion_${id}.pdf`)
   }
 
   const openConvertModal = (cot: Cotizacion) => {
@@ -431,6 +432,7 @@ export default function CotizacionesPage() {
     { title: 'Estado', dataIndex: 'estado', key: 'estado', render: (val: string) => <Tag color={estadoColor[val]}>{val}</Tag> },
     { title: 'Subtotal', dataIndex: 'subtotal', key: 'subtotal', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'IVA', dataIndex: 'iva', key: 'iva', render: (val: any) => (Number(val || 0) > 0 ? `Bs. ${Number(val).toFixed(2)}` : '-') },
+    { title: 'Desc.', dataIndex: 'descuento', key: 'descuento', render: (val: any) => (Number(val || 0) > 0 ? `${Number(val)}%` : '-') },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Vence', dataIndex: 'fecha_vencimiento', key: 'fecha_vencimiento', render: (val: string) => dayjs(val).format('DD/MM/YYYY') },
     {
@@ -445,8 +447,7 @@ export default function CotizacionesPage() {
         return (
           <div className="flex gap-1 flex-wrap">
             <Button size={isMobile ? 'middle' : 'small'} icon={<ProfileOutlined />} title="Ver detalle" onClick={() => { setDetailCotizacion(record); setDetailVisible(true) }} />
-            <Button size={isMobile ? 'middle' : 'small'} icon={<EyeOutlined />} title="Vista previa" onClick={() => handlePreviewPdf(record.id)} />
-            <Button size={isMobile ? 'middle' : 'small'} icon={<DownloadOutlined />} title="Descargar PDF" onClick={() => handleDownloadPdf(record.id)} />
+            <Button size={isMobile ? 'middle' : 'small'} icon={<EyeOutlined />} title="Vista previa" onClick={() => handlePdfPreview(record.id)} />
             {editable && (
               <>
                 <Button size={isMobile ? 'middle' : 'small'} icon={<EditOutlined />} title="Editar" onClick={() => openEditModal(record)} />
@@ -473,21 +474,6 @@ export default function CotizacionesPage() {
 
   const fabVisible = isMobile && !modalVisible && !detailVisible && !convertVisible
 
-  const clienteCrudModalProps = {
-    title: 'Clientes',
-    onSelect: (rec: any) => form.setFieldValue('cliente_id', rec.id),
-    fetchAll: getClientes as any,
-    create: createCliente as any,
-    update: updateCliente as any,
-    remove: deleteCliente as any,
-    fields: [
-      { name: 'nombre', label: 'Nombre' },
-      { name: 'nit', label: 'NIT' },
-      { name: 'celular', label: 'Celular' },
-      { name: 'direccion', label: 'Dirección' },
-    ],
-  }
-
   const comprobanteCrudModalProps = {
     title: 'Comprobantes',
     onSelect: (rec: any) => convertForm.setFieldValue('comprobante_id', rec.id),
@@ -499,6 +485,7 @@ export default function CotizacionesPage() {
       { name: 'nombre', label: 'Nombre' },
       { name: 'numero', label: 'Número', type: 'number' as const },
     ],
+    onDataChange: (list: any[]) => setComprobantes(list),
   }
 
   const estadoCrudModalProps = {
@@ -509,6 +496,7 @@ export default function CotizacionesPage() {
     update: estadoService.update as any,
     remove: estadoService.delete as any,
     fields: [{ name: 'nombre', label: 'Nombre' }],
+    onDataChange: (list: any[]) => setEstados(list),
   }
 
   return (
@@ -602,7 +590,21 @@ export default function CotizacionesPage() {
               <SubCrudSelect
                 placeholder="Seleccione un cliente"
                 options={clienteOptions}
-                modalProps={clienteCrudModalProps}
+                disabled={editingCotizacion !== null}
+                modalProps={{
+                  title: 'Clientes',
+                  fetchAll: getClientes,
+                  create: createCliente,
+                  update: updateCliente,
+                  remove: deleteCliente,
+                  fields: [
+                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nit', label: 'NIT' },
+                    { name: 'celular', label: 'Celular' },
+                    { name: 'direccion', label: 'Dirección' },
+                  ],
+                  onDataChange: (list) => setClientes(list),
+                }}
               />
             </Form.Item>
             <Form.Item name="validez_dias" label="Validez (días)" rules={[{ required: true }]} className="flex-1 min-w-[120px] !mb-3" initialValue={15}>
@@ -627,6 +629,18 @@ export default function CotizacionesPage() {
           <Form.Item name="modalidad_pago" label="Modalidad de pago">
             <Input placeholder="Ej. 50% adelanto, 50% contra entrega" />
           </Form.Item>
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="forma_pago" label="Forma de pago" className="flex-1 min-w-[200px]">
+              <Select
+                allowClear
+                placeholder="Seleccione la forma de pago"
+                options={FORMA_PAGO_OPTIONS.map((f) => ({ value: f, label: f }))}
+              />
+            </Form.Item>
+            <Form.Item name="descuento" label="Descuento %" className="flex-1 min-w-[140px]">
+              <InputNumber min={0} max={100} step={0.01} className="w-full" />
+            </Form.Item>
+          </div>
           <Form.Item name="terminos_condiciones" label="Términos y condiciones">
             <Input.TextArea rows={3} placeholder="Términos y condiciones de la oferta" />
           </Form.Item>
@@ -723,6 +737,11 @@ export default function CotizacionesPage() {
                 IVA ({IVA_RATE}%): Bs. {ivaCalculado.toFixed(2)}
               </div>
             )}
+            {descuentoPct > 0 && (
+              <div className="font-normal text-sm text-green-600">
+                Descuento ({descuentoPct}%): -Bs. {descuentoCalculado.toFixed(2)}
+              </div>
+            )}
             <div className="text-lg mt-1">
               Total: Bs. {totalCalculado.toFixed(2)}
             </div>
@@ -746,29 +765,69 @@ export default function CotizacionesPage() {
       >
         {detailCotizacion && (
           <div>
-            <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
-              <Descriptions.Item label="N°">{detailCotizacion.numero}</Descriptions.Item>
-              <Descriptions.Item label="Estado">
-                <Tag color={estadoColor[detailCotizacion.estado]}>{detailCotizacion.estado}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Fecha">{dayjs(detailCotizacion.fecha).format('DD/MM/YYYY')}</Descriptions.Item>
-              <Descriptions.Item label="Vencimiento">{dayjs(detailCotizacion.fecha_vencimiento).format('DD/MM/YYYY')}</Descriptions.Item>
-              <Descriptions.Item label="Cliente" span={2}>{detailCotizacion.cliente_razon_social}</Descriptions.Item>
-              <Descriptions.Item label="NIT">{detailCotizacion.cliente_nit}</Descriptions.Item>
-              <Descriptions.Item label="Celular">{detailCotizacion.cliente_celular}</Descriptions.Item>
-              <Descriptions.Item label="Dirección" span={2}>{detailCotizacion.cliente_direccion}</Descriptions.Item>
-              <Descriptions.Item label="Con factura">{detailCotizacion.con_factura ? 'Sí' : 'No'}</Descriptions.Item>
-              <Descriptions.Item label="Incluir imágenes">{detailCotizacion.incluir_imagenes ? 'Sí' : 'No'}</Descriptions.Item>
-              <Descriptions.Item label="Modalidad de pago" span={2}>{detailCotizacion.modalidad_pago || '-'}</Descriptions.Item>
-              {detailCotizacion.venta_id && (
-                <Descriptions.Item label="Venta generada" span={2}>
-                  <Tag color="green">Venta N° {detailCotizacion.venta_id}</Tag>
-                </Descriptions.Item>
-              )}
-            </Descriptions>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-100">
+              <div>
+                <div className="text-lg font-bold">Cotización N° {detailCotizacion.numero}</div>
+                <div className="text-sm text-gray-500">
+                  {dayjs(detailCotizacion.fecha).format('DD/MM/YYYY')} · Vence el {dayjs(detailCotizacion.fecha_vencimiento).format('DD/MM/YYYY')}
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <Tag color={estadoColor[detailCotizacion.estado]} className="!m-0 !text-xs !px-2 !py-0.5">
+                  {detailCotizacion.estado}
+                </Tag>
+                {detailCotizacion.venta_id && (
+                  <Tag color="green" className="!m-0 !text-xs !px-2 !py-0.5">
+                    Venta N° {detailCotizacion.venta_id}
+                  </Tag>
+                )}
+              </div>
+            </div>
 
+            <Card size="small" title="Cliente" className="!mb-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Cliente</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_razon_social}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">NIT</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_nit || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Celular</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_celular || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Dirección</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_direccion || '-'}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card size="small" title="Condiciones de la oferta" className="!mb-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Con factura</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.con_factura ? 'Sí' : 'No'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Incluir imágenes</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.incluir_imagenes ? 'Sí' : 'No'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Modalidad de pago</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.modalidad_pago || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Forma de pago</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.forma_pago || '-'}</div>
+                </div>
+              </div>
+            </Card>
+
+            <div className="mb-2 font-medium">Productos</div>
             <Table
-              className="mt-4"
               columns={detColumns}
               dataSource={detailCotizacion.detalles?.map((d) => ({ ...d, key: d.id }))}
               pagination={false}
@@ -777,25 +836,35 @@ export default function CotizacionesPage() {
               scroll={{ x: 'max-content' }}
             />
 
-            <div className="text-right mt-3 font-bold">
-              <div>Subtotal: Bs. {Number(detailCotizacion.subtotal || 0).toFixed(2)}</div>
-              {Number(detailCotizacion.iva || 0) > 0 && (
-                <div className="font-normal text-sm text-orange-500">IVA (13%): Bs. {Number(detailCotizacion.iva).toFixed(2)}</div>
-              )}
-              <div className="text-lg">Total: Bs. {Number(detailCotizacion.total || 0).toFixed(2)}</div>
-            </div>
+            <Card size="small" className="mt-3">
+              <div className="text-right font-bold">
+                <div className="font-normal text-sm text-gray-500">
+                  Subtotal: Bs. {Number(detailCotizacion.subtotal || 0).toFixed(2)}
+                </div>
+                {Number(detailCotizacion.iva || 0) > 0 && (
+                  <div className="font-normal text-sm text-orange-500">
+                    IVA (16%): Bs. {Number(detailCotizacion.iva).toFixed(2)}
+                  </div>
+                )}
+                {Number(detailCotizacion.descuento || 0) > 0 && (
+                  <div className="font-normal text-sm text-green-600">
+                    Descuento ({detailCotizacion.descuento}%): -Bs. {(Number(detailCotizacion.subtotal || 0) * Number(detailCotizacion.descuento) / 100).toFixed(2)}
+                  </div>
+                )}
+                <div className="text-lg mt-1">Total: Bs. {Number(detailCotizacion.total || 0).toFixed(2)}</div>
+              </div>
+            </Card>
 
             {detailCotizacion.terminos_condiciones && (
               <div className="mt-3 p-3 bg-gray-50 rounded text-sm whitespace-pre-line">
                 <strong>Términos y condiciones</strong>
-                <div>{detailCotizacion.terminos_condiciones}</div>
+                <div className="mt-1">{detailCotizacion.terminos_condiciones}</div>
               </div>
             )}
 
             <div className="mt-3 text-right">
               <Space>
-                <Button icon={<EyeOutlined />} onClick={() => handlePreviewPdf(detailCotizacion.id)}>Vista previa</Button>
-                <Button icon={<DownloadOutlined />} type="primary" onClick={() => handleDownloadPdf(detailCotizacion.id)}>Descargar PDF</Button>
+                <Button icon={<EyeOutlined />} onClick={() => handlePdfPreview(detailCotizacion.id)}>Vista previa</Button>
               </Space>
             </div>
           </div>
@@ -841,10 +910,16 @@ export default function CotizacionesPage() {
         </Form>
         {convertCotizacion?.con_factura && (
           <div className="text-sm text-orange-500">
-            La venta incluirá IVA (13%) porque la cotización es con factura.
+            La venta incluirá IVA (16%) porque la cotización es con factura.
+          </div>
+        )}
+        {convertCotizacion && Number(convertCotizacion.descuento || 0) > 0 && (
+          <div className="text-sm text-green-600">
+            El descuento de {convertCotizacion.descuento}% se trasladará a la venta.
           </div>
         )}
       </Modal>
+      {previewModal}
     </div>
   )
 }

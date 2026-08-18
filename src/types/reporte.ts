@@ -28,3 +28,32 @@ export interface TopProducto {
   descripcion: string
   total_vendido: number
 }
+
+export interface KardexMovimiento {
+  fecha: string
+  tipo: 'ENTRADA' | 'SALIDA' | 'SALDO INICIAL'
+  detalle: string
+  cantidad: number
+  precio: number
+  saldo: number
+}
+
+export interface KardexResponse {
+  producto: {
+    id: number
+    codigo: string
+    descripcion: string
+    marca: string
+    procedencia?: string
+    categoria?: string | null
+    precio?: number
+    utilidad?: number
+    stock_inicial: number
+    stock_actual: number
+    stock_minimo: number
+    stock_maximo?: number
+    imagen?: string | null
+    activo?: boolean
+  }
+  movimientos: KardexMovimiento[]
+}

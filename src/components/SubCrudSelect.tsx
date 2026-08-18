@@ -1,38 +1,57 @@
 import { useState } from 'react'
-import { Select, Button, Space } from 'antd'
-import { SettingOutlined } from '@ant-design/icons'
+import { Select, Button } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
 import SubCrudModal from './SubCrudModal'
 import type { SubCrudModalProps } from './SubCrudModal'
 
 interface SubCrudSelectProps {
-  placeholder: string
-  value?: number | null
-  onChange?: (value: number | null) => void
-  options: { value: number; label: string }[]
+  placeholder?: string
+  value?: number | string | null
+  onChange?: (value: number | string | null) => void
+  options: { value: number | string; label: string }[]
+  disabled?: boolean
+  allowClear?: boolean
   modalProps: Omit<SubCrudModalProps, 'visible' | 'onCancel'>
 }
 
-export default function SubCrudSelect({ placeholder, value, onChange, options, modalProps }: SubCrudSelectProps) {
+export default function SubCrudSelect({
+  placeholder,
+  value,
+  onChange,
+  options,
+  disabled,
+  allowClear,
+  modalProps,
+}: SubCrudSelectProps) {
   const [modalOpen, setModalOpen] = useState(false)
 
   return (
-    <Space.Compact style={{ width: '100%' }}>
+    <>
       <Select
         placeholder={placeholder}
         value={value ?? undefined}
         onChange={onChange}
         options={options}
-        allowClear
+        disabled={disabled}
+        allowClear={allowClear ?? true}
         showSearch
-        optionFilterProp="label"
-        style={{ flex: 1 }}
+        filterOption={(input, option) => (option?.label as string || '').toLowerCase().includes(input.toLowerCase())}
+        popupRender={(menu) => (
+          <>
+            {menu}
+            <div className="p-2 border-t border-gray-100">
+              <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+                Gestionar {modalProps.title}
+              </Button>
+            </div>
+          </>
+        )}
       />
-      <Button icon={<SettingOutlined />} onClick={() => setModalOpen(true)} />
       <SubCrudModal
         {...modalProps}
         visible={modalOpen}
         onCancel={() => setModalOpen(false)}
       />
-    </Space.Compact>
+    </>
   )
 }

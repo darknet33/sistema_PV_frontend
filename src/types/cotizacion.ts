@@ -24,8 +24,10 @@ export interface CotizacionCreate {
   con_factura?: boolean
   incluir_imagenes?: boolean
   modalidad_pago?: string
+  forma_pago?: string
   validez_dias?: number
   terminos_condiciones?: string
+  descuento?: number
   detalles: CotizacionDetalleCreate[]
 }
 
@@ -35,8 +37,10 @@ export interface CotizacionUpdate {
   con_factura?: boolean
   incluir_imagenes?: boolean
   modalidad_pago?: string
+  forma_pago?: string
   validez_dias?: number
   terminos_condiciones?: string
+  descuento?: number
   detalles?: CotizacionDetalleCreate[]
 }
 
@@ -54,10 +58,12 @@ export interface Cotizacion {
   con_factura: boolean
   incluir_imagenes: boolean
   modalidad_pago: string
+  forma_pago: string
   validez_dias: number
   terminos_condiciones: string
   subtotal: number
   iva: number
+  descuento: number
   total: number
   activo: boolean
   usuario_id: number

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Table, Button, Popconfirm, Space, message } from 'antd'
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
 import type { CrudField } from '../../components/CrudModal'
+import SubCrudSelect from '../../components/SubCrudSelect'
+import PageHeader from '../../components/PageHeader'
 import { useCrud } from '../../hooks/useCrud'
 import usuarioService from '../../services/usuarioService'
 import rolService from '../../services/rolService'
@@ -33,9 +35,24 @@ export default function UsuariosPage() {
     {
       name: 'rol_id',
       label: 'Rol',
-      type: 'select',
       required: true,
-      options: roles.map((r) => ({ value: r.id, label: r.nombre })),
+      render: () => (
+        <SubCrudSelect
+          placeholder="Seleccione un rol"
+          options={roles.map((r) => ({ value: r.id, label: r.nombre }))}
+          modalProps={{
+            title: 'Roles',
+            fetchAll: rolService.getAll,
+            create: rolService.create,
+            update: rolService.update,
+            remove: rolService.delete,
+            fields: [
+              { name: 'nombre', label: 'Nombre' },
+            ],
+            onDataChange: (list) => setRoles(list),
+          }}
+        />
+      ),
     },
   ]
 
@@ -71,7 +88,11 @@ export default function UsuariosPage() {
 
   return (
     <div>
-      <h2 style={{ marginBottom: 16 }}>Usuarios</h2>
+      <PageHeader title="Usuarios">
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+          Nuevo Usuario
+        </Button>
+      </PageHeader>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} scroll={{ x: 'max-content' }} pagination={{ pageSize: 10 }} />
       <CrudModal
         visible={modalVisible}

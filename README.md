@@ -114,13 +114,13 @@ Archivos clave:
 | `reports/cotizacion_single.py` (backend) | PDF |
 
 Flujo:
-1. **Crear**: cliente, fecha, validez (días, default 15), `con_factura` (IVA 13%), `incluir_imagenes`, modalidad de pago, términos y condiciones + detalle de líneas (producto, cantidad, costo, utilidad % → precio de venta calculado).
+1. **Crear**: cliente, fecha, validez (días, default 15), `con_factura` (IVA 16%), `incluir_imagenes`, modalidad de pago, forma de pago (Transferencia SIGEP / Cheque / Al contado), descuento %, términos y condiciones + detalle de líneas (producto, cantidad, costo, utilidad % → precio de venta calculado).
 2. **Confirmar**: pasa a `Confirmado` (solo desde `Enviado`).
 3. **Convertir en venta**: selecciona comprobante y estado → crea la venta (descuenta stock, IVA si `con_factura`).
 4. **PDF**: descarga o vista previa (`/pdf` y `/pdf/preview`).
 
 Convenciones específicas:
-- IVA 13% si `con_factura` (backend calcula y envía `subtotal`, `iva`, `total`).
+- IVA 16% si `con_factura`; descuento % restado sobre el subtotal (backend calcula y envía `subtotal`, `iva`, `descuento`, `total`).
 - Estados: `Enviado` (tags), `Confirmado`, `Vencido` (automático si pasó `fecha_vencimiento`).
 - `COT-{id:06d}`: número generado por el backend.
 - El selector de producto reutiliza `ProductoSelectorModal`; los selects de cliente/comprobante/estado usan `SubCrudSelect`.

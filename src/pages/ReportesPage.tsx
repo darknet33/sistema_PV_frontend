@@ -1,37 +1,25 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Card, DatePicker, Button, Space, Row, Col, Table, Modal, Statistic, message, Spin, Tag, Input } from 'antd'
-import { FilePdfOutlined, ReloadOutlined, ShoppingCartOutlined, ShopOutlined, RiseOutlined, SearchOutlined } from '@ant-design/icons'
+import { Card, DatePicker, Button, Space, Row, Col, Table, Statistic, message, Spin, Tag } from 'antd'
+import { FilePdfOutlined, ReloadOutlined, ShoppingCartOutlined, ShopOutlined, RiseOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
-import { getProductos } from '../services/productoService'
-import categoriaService from '../services/categoriaService'
 import { getResumenVentas, getResumenCompras, getTopProductos } from '../services/reporteService'
 import type { ResumenVenta, ResumenCompra, TopProducto } from '../types/reporte'
-import type { Categoria } from '../types/categoria'
 import api from '../services/api'
-import type { Producto } from '../types/producto'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import usePdfPreview from '../hooks/usePdfPreview'
 
 const { RangePicker } = DatePicker
 
 export default function ReportesPage() {
+  const { openPdf, previewModal } = usePdfPreview()
   const [fechas, setFechas] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([dayjs().subtract(1, 'month'), dayjs()])
   const [loading, setLoading] = useState(false)
 
   const [ventas, setVentas] = useState<ResumenVenta[]>([])
   const [compras, setCompras] = useState<ResumenCompra[]>([])
   const [topProductos, setTopProductos] = useState<TopProducto[]>([])
-  const [productos, setProductos] = useState<Producto[]>([])
-  const [categorias, setCategorias] = useState<Categoria[]>([])
-  const [kardexProductoId, setKardexProductoId] = useState<number | undefined>(undefined)
   const [pdfLoading, setPdfLoading] = useState<string | null>(null)
-  const [productoModalVisible, setProductoModalVisible] = useState(false)
-  const [productoSearchText, setProductoSearchText] = useState('')
-
-  useEffect(() => {
-    getProductos().then((data) => setProductos(Array.isArray(data) ? data : [])).catch(() => {})
-    categoriaService.getAll().then((data) => setCategorias(Array.isArray(data) ? data : [])).catch(() => {})
-  }, [])
 
   const formatFecha = (d: dayjs.Dayjs) => d.format('YYYY-MM-DD HH:mm:ss')
 
@@ -92,44 +80,15 @@ export default function ReportesPage() {
         params: { fecha_inicio: fi, fecha_fin: ff, ...params },
         responseType: 'blob',
       })
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `reporte_${tipo.replace('/', '_')}_${dayjs().format('YYYYMMDD')}.pdf`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      message.success('PDF generado')
+      const blob = response.data as Blob
+      const titulo = tipo === 'ventas' ? 'Reporte de Ventas' : 'Reporte de Compras'
+      await openPdf(
+        () => Promise.resolve(blob),
+        titulo,
+        `reporte_${tipo.replace('/', '_')}_${dayjs().format('YYYYMMDD')}.pdf`
+      )
     } catch {
       message.error('Error al generar PDF')
-    } finally {
-      setPdfLoading(null)
-    }
-  }
-
-  const descargarKardex = async () => {
-    if (!kardexProductoId) {
-      message.warning('Seleccione un producto')
-      return
-    }
-    setPdfLoading('kardex')
-    try {
-      const fi = formatFecha((fechas[0] || dayjs().subtract(1, 'month')).startOf('day'))
-      const ff = formatFecha((fechas[1] || dayjs()).endOf('day'))
-      const response = await api.get(`/reportes/kardex/${kardexProductoId}`, {
-        params: { fecha_inicio: fi, fecha_fin: ff },
-        responseType: 'blob',
-      })
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `kardex_${kardexProductoId}_${dayjs().format('YYYYMMDD')}.pdf`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      message.success('Kardex PDF generado')
-    } catch {
-      message.error('Error al generar Kardex')
     } finally {
       setPdfLoading(null)
     }
@@ -160,24 +119,6 @@ export default function ReportesPage() {
     { title: 'Producto', dataIndex: 'descripcion' },
     { title: 'Total Vendido', dataIndex: 'total_vendido', render: (v: number) => v },
   ]
-
-  const catMap = useMemo(() => {
-    const map = new Map<number, string>()
-    categorias.forEach((c) => map.set(c.id, c.nombre))
-    return map
-  }, [categorias])
-
-  const filteredProductos = useMemo(() => {
-    if (!productoSearchText) return productos
-    const q = productoSearchText.toLowerCase()
-    return productos.filter((p) => {
-      const catNombre = catMap.get(p.categoria_id) || ''
-      return p.codigo.toLowerCase().includes(q) ||
-        p.descripcion.toLowerCase().includes(q) ||
-        p.marca.toLowerCase().includes(q) ||
-        catNombre.toLowerCase().includes(q)
-    })
-  }, [productos, productoSearchText, catMap])
 
   return (
     <div>
@@ -285,75 +226,8 @@ export default function ReportesPage() {
             pagination={false}
           />
         </Card>
-
-        <Card title="Kardex por producto" style={{ marginBottom: 16 }}>
-          <Space wrap>
-            <Button
-              icon={<SearchOutlined />}
-              onClick={() => setProductoModalVisible(true)}
-            >
-              {kardexProductoId
-                ? (() => { const p = productos.find(x => x.id === kardexProductoId); return p ? `[${p.codigo}] ${p.descripcion}` : 'Seleccionar producto' })()
-                : 'Seleccionar producto'}
-            </Button>
-            <Button
-              type="primary"
-              icon={<FilePdfOutlined />}
-              loading={pdfLoading === 'kardex'}
-              onClick={descargarKardex}
-              disabled={!kardexProductoId}
-            >
-              Generar Kardex PDF
-            </Button>
-          </Space>
-        </Card>
       </Spin>
-
-      <Modal
-        title="Seleccionar producto"
-        open={productoModalVisible}
-        onCancel={() => { setProductoModalVisible(false); setProductoSearchText('') }}
-        footer={null}
-        width={650}
-        className="responsive-modal"
-      >
-        <Input.Search
-          placeholder="Buscar por código, descripción o marca"
-          allowClear
-          style={{ marginBottom: 12 }}
-          value={productoSearchText}
-          onChange={(e) => setProductoSearchText(e.target.value)}
-        />
-        <Table
-          columns={[
-            {
-              title: 'Producto',
-              key: 'producto',
-              render: (_, r) => (
-                <div>
-                  <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
-                </div>
-              ),
-            },
-            { title: 'Stock Actual', dataIndex: 'stock_actual', key: 'stock_actual', width: 100 },
-            { title: 'Stock Mínimo', dataIndex: 'stock_minimo', key: 'stock_minimo', width: 100 },
-          ]}
-          dataSource={filteredProductos}
-          rowKey="id"
-          size="small"
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 8 }}
-          onRow={(record) => ({
-            onClick: () => {
-              setKardexProductoId(record.id)
-              setProductoModalVisible(false)
-              setProductoSearchText('')
-            },
-            style: { cursor: 'pointer' },
-          })}
-        />
-      </Modal>
+      {previewModal}
     </div>
   )
 }

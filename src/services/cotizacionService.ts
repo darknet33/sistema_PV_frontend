@@ -37,6 +37,11 @@ export const convertirCotizacionEnVenta = async (id: number, data: ConvertirVent
   return response.data
 }
 
+export const fetchCotizacionPdfBlob = async (id: number): Promise<Blob> => {
+  const response = await api.get(`/cotizaciones/${id}/pdf`, { responseType: 'blob' })
+  return response.data
+}
+
 export const downloadCotizacionPdf = async (id: number) => {
   const response = await api.get(`/cotizaciones/${id}/pdf`, { responseType: 'blob' })
   const url = window.URL.createObjectURL(new Blob([response.data]))

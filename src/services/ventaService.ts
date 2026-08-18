@@ -30,6 +30,11 @@ export const deleteVenta = async (id: number): Promise<void> => {
   await api.delete(`/ventas/${id}`)
 }
 
+export const fetchVentaPdfBlob = async (id: number): Promise<Blob> => {
+  const response = await api.get(`/ventas/${id}/pdf`, { responseType: 'blob' })
+  return response.data
+}
+
 export const downloadVentaPdf = async (id: number) => {
   const response = await api.get(`/ventas/${id}/pdf`, { responseType: 'blob' })
   const url = window.URL.createObjectURL(new Blob([response.data]))
@@ -40,6 +45,19 @@ export const downloadVentaPdf = async (id: number) => {
   link.click()
   document.body.removeChild(link)
   window.URL.revokeObjectURL(url)
+}
+
+export const fetchVentaReportBlob = async (
+  fechaInicio: string,
+  fechaFin: string,
+  clienteText?: string,
+  estadoId?: number
+): Promise<Blob> => {
+  const params: any = { fecha_inicio: fechaInicio, fecha_fin: fechaFin }
+  if (clienteText) params.cliente_text = clienteText
+  if (estadoId) params.estado_id = estadoId
+  const response = await api.get('/reportes/ventas/pdf', { params, responseType: 'blob' })
+  return response.data
 }
 
 export const downloadVentaReport = async (

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Table, Modal, Button, Transfer, Spin, Tag, Popconfirm, Space, message } from 'antd'
-import { SecurityScanOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, SecurityScanOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
 import type { CrudField } from '../../components/CrudModal'
+import PageHeader from '../../components/PageHeader'
 import { useCrud } from '../../hooks/useCrud'
 import rolService from '../../services/rolService'
 import moduloService from '../../services/moduloService'
@@ -81,7 +82,11 @@ export default function RolesPage() {
 
   return (
     <div>
-      <h2 style={{ marginBottom: 16 }}>Roles</h2>
+      <PageHeader title="Roles">
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+          Nuevo Rol
+        </Button>
+      </PageHeader>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} scroll={{ x: 'max-content' }} pagination={{ pageSize: 10 }} />
 
       <CrudModal

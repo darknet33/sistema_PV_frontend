@@ -44,6 +44,7 @@ export interface Venta {
   activo: boolean
   usuario_id: number
   usuario_username: string
+  usuario_nombre_completo?: string
   fecha_registro: string
   detalles: VentaDetalleResponse[]
 }

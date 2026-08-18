@@ -34,6 +34,19 @@
   }
 }
 
+.ant-modal-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ant-modal-wrap .ant-modal {
+  top: 0;
+  margin: 0;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
 @media (max-width: 768px) {
   .ant-table {
     font-size: 13px;

@@ -30,6 +30,17 @@ export const anularCompra = async (id: number): Promise<Compra> => {
   return response.data
 }
 
+export const fetchCompraReportBlob = async (fechaInicio: string, fechaFin: string, proveedorText?: string, estadoId?: number): Promise<Blob> => {
+  const params: any = { fecha_inicio: fechaInicio, fecha_fin: fechaFin }
+  if (proveedorText) params.proveedor_text = proveedorText
+  if (estadoId) params.estado_id = estadoId
+  const response = await api.get('/reportes/compras/pdf', {
+    params,
+    responseType: 'blob',
+  })
+  return response.data
+}
+
 export const downloadCompraReport = async (fechaInicio: string, fechaFin: string, proveedorText?: string, estadoId?: number): Promise<void> => {
   const params: any = { fecha_inicio: fechaInicio, fecha_fin: fechaFin }
   if (proveedorText) params.proveedor_text = proveedorText
@@ -46,6 +57,11 @@ export const downloadCompraReport = async (fechaInicio: string, fechaFin: string
   link.click()
   link.remove()
   window.URL.revokeObjectURL(url)
+}
+
+export const fetchCompraPdfBlob = async (id: number): Promise<Blob> => {
+  const response = await api.get(`/compras/${id}/pdf`, { responseType: 'blob' })
+  return response.data
 }
 
 export const downloadCompraPdf = async (id: number): Promise<void> => {

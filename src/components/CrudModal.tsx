@@ -1,4 +1,5 @@
 import { Modal, Form, Input, InputNumber, Switch, Select } from 'antd'
+import type { ReactNode } from 'react'
 
 export interface CrudField {
   name: string
@@ -12,6 +13,7 @@ export interface CrudField {
   max?: number
   step?: number
   props?: Record<string, unknown>
+  render?: (form: ReturnType<typeof Form.useForm>[0]) => ReactNode
 }
 
 interface CrudModalProps {
@@ -50,6 +52,14 @@ export default function CrudModal({
           const baseRules = field.required
             ? [...(field.rules ?? []), { required: true, message: `${field.label} es requerido` }]
             : field.rules
+
+          if (field.render) {
+            return (
+              <Form.Item key={field.name} name={field.name} label={field.label} rules={baseRules}>
+                {field.render(form)}
+              </Form.Item>
+            )
+          }
 
           switch (field.type) {
             case 'switch':

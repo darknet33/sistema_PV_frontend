@@ -1,11 +1,14 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined, HistoryOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Venta, VentaCreate } from '../types/venta'
-import { getVentas, createVenta, updateVenta, deleteVenta, anularVenta, downloadVentaReport, downloadVentaPdf } from '../services/ventaService'
+import { getVentas, createVenta, updateVenta, deleteVenta, anularVenta, fetchVentaReportBlob, fetchVentaPdfBlob } from '../services/ventaService'
+import { getNotasEntrega, createNotaEntrega, deleteNotaEntrega, fetchNotaEntregaPdfBlob } from '../services/notaEntregaService'
+import usePdfPreview from '../hooks/usePdfPreview'
+import type { NotaEntrega } from '../types/notaEntrega'
 import { getClientes, createCliente, updateCliente, deleteCliente } from '../services/clienteService'
 import comprobanteService from '../services/comprobanteService'
 import { getProductos } from '../services/productoService'
@@ -17,6 +20,7 @@ import type { Categoria } from '../types/categoria'
 import { calcularPrecioBase } from '../utils/pricing'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
+import SubCrudSelect from '../components/SubCrudSelect'
 
 const { useBreakpoint } = Grid
 
@@ -59,21 +63,22 @@ export default function VentasPage() {
 
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
 
-  const [clienteModalVisible, setClienteModalVisible] = useState(false)
-  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null)
-  const [clienteForm] = Form.useForm()
-
-  const [comprobanteModalVisible, setComprobanteModalVisible] = useState(false)
-  const [editingComprobante, setEditingComprobante] = useState<any>(null)
-  const [comprobanteForm] = Form.useForm()
-
-  const [estadoModalVisible, setEstadoModalVisible] = useState(false)
-  const [editingEstado, setEditingEstado] = useState<any>(null)
-  const [estadoForm] = Form.useForm()
-
   const [productoModalVisible, setProductoModalVisible] = useState(false)
   const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
   const [productoSearchText, setProductoSearchText] = useState('')
+
+  const [notaModalVisible, setNotaModalVisible] = useState(false)
+  const [notaVenta, setNotaVenta] = useState<Venta | null>(null)
+  const [notaDetalles, setNotaDetalles] = useState<{ key: string; producto_id: number; producto_codigo: string; producto_nombre: string; producto_categoria: string; cantidadVenta: number; cantidad: number }[]>([])
+  const [notaForm] = Form.useForm()
+  const [notaGenerando, setNotaGenerando] = useState(false)
+
+  const [notasVisible, setNotasVisible] = useState(false)
+  const [notasVenta, setNotasVenta] = useState<Venta | null>(null)
+  const [notas, setNotas] = useState<NotaEntrega[]>([])
+  const [notasLoading, setNotasLoading] = useState(false)
+
+  const { openPdf, previewModal } = usePdfPreview()
 
   const clienteOptions = useMemo(() =>
     clientes.filter((c) => c.activo !== false).map((c) => ({ value: c.id, label: c.nombre })),
@@ -394,20 +399,103 @@ export default function VentasPage() {
     try {
       const inicio = filterFecha?.[0]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().startOf('month').format('YYYY-MM-DDTHH:mm:ss')
       const fin = filterFecha?.[1]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().format('YYYY-MM-DDTHH:mm:ss')
-      await downloadVentaReport(inicio, fin, searchClienteText || undefined, filterEstado)
-      message.success('Reporte descargado')
+      await openPdf(
+        () => fetchVentaReportBlob(inicio, fin, searchClienteText || undefined, filterEstado),
+        'Reporte de Ventas',
+        `reporte_ventas_${dayjs().format('YYYYMMDD')}.pdf`
+      )
     } catch {
       message.error('Error al descargar reporte')
     }
   }
 
   const handlePrintPdf = async (id: number) => {
+    await openPdf(() => fetchVentaPdfBlob(id), `Comprobante de Venta #${id}`, `venta_${id}.pdf`)
+  }
+
+  const openNotaModal = (venta: Venta) => {
+    setNotaVenta(venta)
+    setNotaDetalles(
+      (venta.detalles || []).map((d, i) => ({
+        key: String(i + 1),
+        producto_id: d.producto_id,
+        producto_codigo: d.producto_codigo,
+        producto_nombre: d.producto_nombre,
+        producto_categoria: d.producto_categoria || '',
+        cantidadVenta: d.cantidad,
+        cantidad: d.cantidad,
+      }))
+    )
+    notaForm.setFieldsValue({
+      entregue_nombre: venta.usuario_nombre_completo || venta.usuario_username || '',
+      entregue_carnet: '',
+      recibi_nombre: venta.cliente_nombre || '',
+      recibi_carnet: '',
+    })
+    setNotaModalVisible(true)
+  }
+
+  const updateNotaDetalleCantidad = (key: string, val: number | null) => {
+    setNotaDetalles((prev) => prev.map((d) => (d.key === key ? { ...d, cantidad: val || 0 } : d)))
+  }
+
+  const notaTotalCantidades = useMemo(() => {
+    return notaDetalles.reduce((sum, d) => sum + (d.cantidad || 0), 0)
+  }, [notaDetalles])
+
+  const notasVentaTotalCantidad = useMemo(() => {
+    return (notasVenta?.detalles || []).reduce((sum, d) => sum + (d.cantidad || 0), 0)
+  }, [notasVenta])
+
+  const handleGenerarNota = async () => {
     try {
-      await downloadVentaPdf(id)
-      message.success('PDF descargado')
-    } catch {
-      message.error('Error al generar PDF')
+      const values = await notaForm.validateFields()
+      const validDetalles = notaDetalles.filter((d) => d.producto_id != null && d.cantidad > 0)
+      if (validDetalles.length === 0) {
+        message.error('Debe indicar al menos una cantidad a entregar')
+        return
+      }
+      if (!notaVenta) return
+      setNotaGenerando(true)
+      const nota = await createNotaEntrega({
+        venta_id: notaVenta.id,
+        entregue_nombre: values.entregue_nombre,
+        entregue_carnet: values.entregue_carnet,
+        recibi_nombre: values.recibi_nombre,
+        recibi_carnet: values.recibi_carnet,
+        detalles: validDetalles.map((d) => ({ producto_id: d.producto_id, cantidad: d.cantidad })),
+      })
+      setNotaModalVisible(false)
+      message.success(`Nota de entrega ${nota.numero} generada`)
+      openPdf(() => fetchNotaEntregaPdfBlob(nota.id), `Nota de Entrega ${nota.numero}`, `nota_entrega_${nota.numero}.pdf`)
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Error al generar nota de entrega')
+    } finally {
+      setNotaGenerando(false)
     }
+  }
+
+  const loadNotasVenta = useCallback(async (ventaId: number) => {
+    setNotasLoading(true)
+    try {
+      const data = await getNotasEntrega(ventaId)
+      setNotas(data)
+    } catch {
+      message.error('Error al cargar notas de entrega')
+    } finally {
+      setNotasLoading(false)
+    }
+  }, [])
+
+  const openNotasModal = (venta: Venta) => {
+    setNotasVenta(venta)
+    setNotasVisible(true)
+    setNotas([])
+    loadNotasVenta(venta.id)
+  }
+
+  const handlePrintNotaPdf = async (record: NotaEntrega) => {
+    openPdf(() => fetchNotaEntregaPdfBlob(record.id), `Nota de Entrega ${record.numero}`, `nota_entrega_${record.numero}.pdf`)
   }
 
   const detColumns: ColumnsType<any> = [
@@ -416,6 +504,58 @@ export default function VentasPage() {
     { title: 'Cantidad', dataIndex: 'cantidad', key: 'cantidad', width: 80 },
     { title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio || 0)).toFixed(2)}` },
+  ]
+
+  const notaDetColumns: ColumnsType<any> = [
+    { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 110 },
+    { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
+    { title: 'Cant. en venta', dataIndex: 'cantidadVenta', key: 'cantidadVenta', width: 110 },
+    {
+      title: 'A entregar', key: 'cantidad', width: 120,
+      render: (_: any, r: any) => (
+        <InputNumber
+          min={0}
+          max={r.cantidadVenta}
+          className="w-full"
+          value={r.cantidad}
+          onChange={(val) => updateNotaDetalleCantidad(r.key, val)}
+        />
+      ),
+    },
+  ]
+
+  const notasColumns: ColumnsType<NotaEntrega> = [
+    { title: 'N°', dataIndex: 'numero', key: 'numero', width: 110 },
+    { title: 'Fecha', dataIndex: 'fecha', key: 'fecha', render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm') },
+    {
+      title: 'Total entregado', dataIndex: 'total_cantidad', key: 'total_cantidad', width: 140,
+      render: (val: number) => {
+        const entregado = Number(val || 0)
+        const total = notasVentaTotalCantidad
+        const completo = total > 0 && entregado >= total
+        return <Tag color={completo ? 'green' : 'orange'}>{entregado} / {total}</Tag>
+      },
+    },
+    { title: 'Generó', dataIndex: 'usuario_username', key: 'usuario_username' },
+    {
+      title: 'Acciones', key: 'acciones', width: 110,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" icon={<PrinterOutlined />} title="Reimprimir" onClick={() => handlePrintNotaPdf(record)} />
+          <Popconfirm title="¿Eliminar nota?" onConfirm={async () => {
+            try {
+              await deleteNotaEntrega(record.id)
+              message.success('Nota eliminada')
+              if (notasVenta) loadNotasVenta(notasVenta.id)
+            } catch (e: any) {
+              message.error(e.response?.data?.detail || 'Error al eliminar')
+            }
+          }}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ]
 
   const columns: ColumnsType<Venta> = [
@@ -429,17 +569,20 @@ export default function VentasPage() {
     { title: 'Desc.', dataIndex: 'descuento', key: 'descuento', render: (val: number) => `${Number(val || 0)}%` },
     { title: 'Usuario', dataIndex: 'usuario_username', key: 'usuario_username' },
     {
-      title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
+      title: 'Acciones', key: 'acciones', width: 300, render: (_, record) => (
         <div className="flex gap-1">
-          <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => openEditModal(record)} />
-          <Button icon={<PrinterOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => handlePrintPdf(record.id)} />
+          <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => openEditModal(record)} title="Editar" />
+          <Button icon={<EyeOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => handlePrintPdf(record.id)} title="Vista previa del PDF">
+            Vista previa
+          </Button>
+          <Button icon={<HistoryOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => openNotasModal(record)} title="Notas de entrega" />
           {record.estado_nombre !== 'Anulado' ? (
             <Popconfirm title="¿Anular venta?" onConfirm={() => handleAnular(record.id)}>
-              <Button icon={<CloseCircleOutlined />} size={isMobile ? 'middle' : 'small'} className="!text-amber-500" />
+              <Button icon={<CloseCircleOutlined />} size={isMobile ? 'middle' : 'small'} className="!text-amber-500" title="Anular" />
             </Popconfirm>
           ) : (
             <Popconfirm title="¿Eliminar venta?" onConfirm={() => handleDelete(record.id)}>
-              <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
+              <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger title="Eliminar" />
             </Popconfirm>
           )}
         </div>
@@ -481,58 +624,6 @@ export default function VentasPage() {
       },
     },
     { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 60 },
-  ]
-
-  const clienteColumns: ColumnsType<Cliente> = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    { title: 'NIT', dataIndex: 'nit' },
-    { title: 'Celular', dataIndex: 'celular' },
-    { title: 'Dirección', dataIndex: 'direccion' },
-    {
-      title: 'Acciones', width: 120,
-      render: (_: unknown, record: Cliente) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingCliente(record); clienteForm.setFieldsValue(record); setClienteModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar cliente?" onConfirm={async () => { try { await deleteCliente(record.id); message.success('Cliente eliminado'); loadClientes() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
-
-  const comprobanteSubColumns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    { title: 'Número', dataIndex: 'numero' },
-    {
-      title: 'Acciones', width: 120,
-      render: (_: unknown, record: any) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingComprobante(record); comprobanteForm.setFieldsValue(record); setComprobanteModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar comprobante?" onConfirm={async () => { try { await comprobanteService.delete(record.id); message.success('Comprobante eliminado'); loadComprobantes() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
-
-  const estadoSubColumns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    {
-      title: 'Acciones', width: 120,
-      render: (_: unknown, record: any) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingEstado(record); estadoForm.setFieldsValue(record); setEstadoModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar estado?" onConfirm={async () => { try { await estadoService.delete(record.id); message.success('Estado eliminado'); loadEstados() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
   ]
 
   const fabVisible = isMobile && !modalVisible
@@ -620,40 +711,44 @@ export default function VentasPage() {
 
           <div className="flex flex-wrap gap-3">
             <Form.Item name="cliente_id" label="Cliente" rules={[{ required: true }]} className="flex-1 min-w-[180px] !mb-3">
-              <Select
-                showSearch
+              <SubCrudSelect
                 placeholder="Seleccione un cliente"
-                filterOption={(input, option) => (option?.label as string || '').toLowerCase().includes(input.toLowerCase())}
                 options={clienteOptions}
                 disabled={editingVenta !== null}
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <div className="p-2 border-t border-gray-100">
-                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingCliente(null); clienteForm.resetFields(); setClienteModalVisible(true) }}>
-                        Gestionar clientes
-                      </Button>
-                    </div>
-                  </>
-                )}
+                modalProps={{
+                  title: 'Clientes',
+                  fetchAll: getClientes,
+                  create: createCliente,
+                  update: updateCliente,
+                  remove: deleteCliente,
+                  fields: [
+                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nit', label: 'NIT' },
+                    { name: 'celular', label: 'Celular' },
+                    { name: 'direccion', label: 'Dirección' },
+                  ],
+                  onDataChange: (list) => setClientes(list),
+                }}
               />
             </Form.Item>
             <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} className="flex-1 min-w-[130px] !mb-3">
-              <Select
+              <SubCrudSelect
                 placeholder="Seleccione un comprobante"
                 options={comprobanteOptions}
                 disabled={editingVenta !== null}
-                onChange={(val) => updateNumComprobanteAuto(val)}
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <div className="p-2 border-t border-gray-100">
-                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingComprobante(null); comprobanteForm.resetFields(); setComprobanteModalVisible(true) }}>
-                        Gestionar comprobantes
-                      </Button>
-                    </div>
-                  </>
-                )}
+                onChange={(val) => updateNumComprobanteAuto(val as number | null)}
+                modalProps={{
+                  title: 'Comprobantes',
+                  fetchAll: comprobanteService.getAll,
+                  create: comprobanteService.create,
+                  update: comprobanteService.update,
+                  remove: comprobanteService.delete,
+                  fields: [
+                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'numero', label: 'Número', type: 'number' },
+                  ],
+                  onDataChange: (list) => setComprobantes(list),
+                }}
               />
             </Form.Item>
             <Form.Item name="num_comprobante" label="N° Comprobante" className="flex-1 min-w-[160px] !mb-3">
@@ -672,19 +767,18 @@ export default function VentasPage() {
           </div>
 
           <Form.Item name="estado_id" label="Estado" rules={[{ required: true }]}>
-            <Select
+            <SubCrudSelect
               placeholder="Seleccione un estado"
               options={estadoOptions}
-              popupRender={(menu) => (
-                <>
-                  {menu}
-                  <div className="p-2 border-t border-gray-100">
-                    <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingEstado(null); estadoForm.resetFields(); setEstadoModalVisible(true) }}>
-                      Gestionar estados
-                    </Button>
-                  </div>
-                </>
-              )}
+              modalProps={{
+                title: 'Estados',
+                fetchAll: estadoService.getAll,
+                create: estadoService.create,
+                update: estadoService.update,
+                remove: estadoService.delete,
+                fields: [{ name: 'nombre', label: 'Nombre' }],
+                onDataChange: (list) => setEstados(list),
+              }}
             />
           </Form.Item>
 
@@ -837,122 +931,89 @@ export default function VentasPage() {
       </Modal>
 
       <Modal
-        title={editingCliente ? 'Editar Cliente' : 'Nuevo Cliente'}
-        open={clienteModalVisible}
-        onCancel={() => setClienteModalVisible(false)}
-        onOk={async () => {
-          try {
-            const values = await clienteForm.validateFields()
-            if (editingCliente) {
-              await updateCliente(editingCliente.id, values)
-              message.success('Cliente actualizado')
-            } else {
-              await createCliente(values)
-              message.success('Cliente creado')
-            }
-            setClienteModalVisible(false)
-            loadClientes()
-          } catch {
-            message.error('Error al guardar cliente')
-          }
-        }}
-        width={500}
+        title={notaVenta ? `Nota de Entrega - Venta #${notaVenta.id}` : 'Nota de Entrega'}
+        open={notaModalVisible}
+        onCancel={() => { setNotaModalVisible(false); setNotaVenta(null); setNotaDetalles([]) }}
+        onOk={handleGenerarNota}
+        confirmLoading={notaGenerando}
+        okText="Generar nota"
+        width={760}
         className="responsive-modal"
       >
-        <Form form={clienteForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="nit" label="NIT" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="celular" label="Celular" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="direccion" label="Dirección" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-        </Form>
-        <ResponsiveTable
-          columns={clienteColumns}
-          dataSource={clientes}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
+        {notaVenta && (
+          <div className="mb-3 p-3 rounded border border-gray-200 bg-gray-50 text-sm">
+            <div><strong>Cliente:</strong> {notaVenta.cliente_nombre}</div>
+            <div><strong>Venta:</strong> {notaVenta.comprobante_nombre} {notaVenta.num_comprobante || ''} - {dayjs(notaVenta.fecha).format('DD/MM/YYYY HH:mm')}</div>
+          </div>
+        )}
+        <div className="mb-2 font-medium">Cantidades a entregar</div>
+        <Table
+          columns={notaDetColumns}
+          dataSource={notaDetalles}
+          rowKey="key"
+          size="small"
+          pagination={false}
+          scroll={{ x: 'max-content' }}
         />
+        <div className="text-right font-bold mt-2 mb-4 text-[15px]">
+          Total de cantidades a entregar: {notaTotalCantidades}
+        </div>
+        <Form form={notaForm} layout="vertical">
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="entregue_nombre" label="Entrega (nombre)" rules={[{ required: true, message: 'Ingrese el nombre' }]} className="flex-1 min-w-[180px]">
+              <Input placeholder="Nombre de quien entrega" />
+            </Form.Item>
+            <Form.Item name="entregue_carnet" label="Entrega (carnet)" rules={[{ required: true, message: 'Ingrese el carnet' }]} className="flex-1 min-w-[150px]">
+              <Input placeholder="Carnet de quien entrega" />
+            </Form.Item>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="recibi_nombre" label="Recibe (nombre)" rules={[{ required: true, message: 'Ingrese el nombre' }]} className="flex-1 min-w-[180px]">
+              <Input placeholder="Nombre de quien recibe" />
+            </Form.Item>
+            <Form.Item name="recibi_carnet" label="Recibe (carnet)" rules={[{ required: true, message: 'Ingrese el carnet' }]} className="flex-1 min-w-[150px]">
+              <Input placeholder="Carnet de quien recibe" />
+            </Form.Item>
+          </div>
+        </Form>
       </Modal>
 
       <Modal
-        title={editingComprobante ? 'Editar Comprobante' : 'Nuevo Comprobante'}
-        open={comprobanteModalVisible}
-        onCancel={() => setComprobanteModalVisible(false)}
-        onOk={async () => {
-          try {
-            const values = await comprobanteForm.validateFields()
-            if (editingComprobante) {
-              await comprobanteService.update(editingComprobante.id, values)
-              message.success('Comprobante actualizado')
-            } else {
-              await comprobanteService.create(values)
-              message.success('Comprobante creado')
-            }
-            setComprobanteModalVisible(false)
-            loadComprobantes()
-          } catch {
-            message.error('Error al guardar comprobante')
-          }
-        }}
+        title={notasVenta ? `Notas de Entrega - ${notasVenta.cliente_nombre}` : 'Notas de Entrega'}
+        open={notasVisible}
+        onCancel={() => { setNotasVisible(false); setNotasVenta(null); setNotas([]) }}
+        width={680}
         className="responsive-modal"
+        footer={
+          <Space>
+            <Button onClick={() => setNotasVisible(false)}>Cerrar</Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                const venta = notasVenta
+                setNotasVisible(false)
+                setNotasVenta(null)
+                setNotas([])
+                if (venta) openNotaModal(venta)
+              }}
+            >
+              Nueva Nota de Entrega
+            </Button>
+          </Space>
+        }
       >
-        <Form form={comprobanteForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="numero" label="Número inicial" rules={[{ required: true }]}>
-            <InputNumber min={1} className="w-full" />
-          </Form.Item>
-        </Form>
         <ResponsiveTable
-          columns={comprobanteSubColumns}
-          dataSource={comprobantes}
+          columns={notasColumns}
+          dataSource={notas}
+          loading={notasLoading}
           rowKey="id"
           pagination={{ pageSize: 5 }}
+          scroll={{ x: 'max-content' }}
         />
       </Modal>
 
-      <Modal
-        title={editingEstado ? 'Editar Estado' : 'Nuevo Estado'}
-        open={estadoModalVisible}
-        onCancel={() => setEstadoModalVisible(false)}
-        onOk={async () => {
-          try {
-            const values = await estadoForm.validateFields()
-            if (editingEstado) {
-              await estadoService.update(editingEstado.id, values)
-              message.success('Estado actualizado')
-            } else {
-              await estadoService.create(values)
-              message.success('Estado creado')
-            }
-            setEstadoModalVisible(false)
-            loadEstados()
-          } catch {
-            message.error('Error al guardar estado')
-          }
-        }}
-        className="responsive-modal"
-      >
-        <Form form={estadoForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-        </Form>
-        <ResponsiveTable
-          columns={estadoSubColumns}
-          dataSource={estados}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-        />
-      </Modal>
+      {previewModal}
     </div>
   )
 }

@@ -13,6 +13,7 @@ import {
   AppstoreOutlined,
   UnorderedListOutlined,
   DollarOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons'
 import { useAuthStore, isTokenExpired } from './stores/authStore'
 import AppLayout from './components/AppLayout'
@@ -20,6 +21,7 @@ import LoginPage from './pages/LoginPage'
 import InicioPage from './pages/InicioPage'
 import ProductosPage from './pages/ProductosPage'
 import CategoriasPage from './pages/productos/CategoriasPage'
+import KardexPage from './pages/productos/KardexPage'
 import ComprasPage from './pages/ComprasPage'
 import ProveedoresPage from './pages/ProveedoresPage'
 import VentasPage from './pages/VentasPage'
@@ -93,10 +95,11 @@ function App() {
       items.push(getItem('Inicio', '/', <DashboardOutlined />))
     }
 
-    if (hasAny('Productos', 'Categorias')) {
+    if (hasModule('Productos')) {
       const children: MenuItem[] = []
-      if (hasModule('Productos')) children.push(getItem('Lista', '/productos/lista', <UnorderedListOutlined />))
+      children.push(getItem('Lista', '/productos/lista', <UnorderedListOutlined />))
       if (hasModule('Categorias')) children.push(getItem('Categorías', '/productos/categorias', <AppstoreOutlined />))
+      children.push(getItem('Kardex', '/productos/kardex', <HistoryOutlined />))
       items.push(getItem('Productos', 'productos-group', <ShoppingCartOutlined />, children))
     }
 
@@ -154,6 +157,7 @@ function App() {
 
         {hasAccess('/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}
         {hasAccess('/productos/categorias') && <Route path="productos/categorias" element={<CategoriasPage />} />}
+        {hasModule('Productos') && <Route path="productos/kardex" element={<KardexPage />} />}
         {hasAccess('/entradas/compras') && <Route path="entradas/compras" element={<ComprasPage />} />}
         {hasAccess('/entradas/proveedores') && <Route path="entradas/proveedores" element={<ProveedoresPage />} />}
         {hasAccess('/salidas/ventas') && <Route path="salidas/ventas" element={<VentasPage />} />}
