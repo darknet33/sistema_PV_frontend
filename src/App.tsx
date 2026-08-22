@@ -58,6 +58,7 @@ const MODULE_ROUTE_MAP: Record<string, string> = {
   Ventas: '/salidas/ventas',
   Cotizaciones: '/cotizaciones',
   Clientes: '/salidas/clientes',
+  Gastos: '/gastos',
   Reportes: '/reportes',
   Usuarios: '/configuracion/usuarios',
   Roles: '/configuracion/roles',
@@ -119,7 +120,9 @@ function App() {
       items.push(getItem('Salidas', 'salidas-group', <ShopOutlined />, children))
     }
 
-    items.push(getItem('Gastos', '/gastos', <DollarOutlined />))
+    if (hasModule('Gastos')) {
+      items.push(getItem('Gastos', '/gastos', <DollarOutlined />))
+    }
 
     if (hasModule('Reportes')) {
       items.push(getItem('Reportes', '/reportes', <FileTextOutlined />))
@@ -166,14 +169,14 @@ function App() {
         {hasAccess('/cotizaciones') && <Route path="cotizaciones" element={<CotizacionesPage />} />}
         {hasAccess('/salidas/clientes') && <Route path="salidas/clientes" element={<ClientesPage />} />}
 
-        <Route path="gastos" element={<GastosPage />} />
+        {hasAccess('/gastos') && <Route path="gastos" element={<GastosPage />} />}
         {hasAccess('/reportes') && <Route path="reportes" element={<ReportesPage />} />}
 
         <Route path="configuracion" element={<ConfiguracionesPage />}>
           {hasAccess('/configuracion/empresa') && <Route path="empresa" element={<EmpresaPage />} />}
           {hasAccess('/configuracion/usuarios') && <Route path="usuarios" element={<UsuariosPage />} />}
           {hasAccess('/configuracion/roles') && <Route path="roles" element={<RolesPage />} />}
-          <Route path="modulos" element={<ModulosPage />} />
+          {hasAccess('/configuracion/modulos') && <Route path="modulos" element={<ModulosPage />} />}
           {hasAccess('/configuracion/comprobantes') && <Route path="comprobantes" element={<ComprobantesPage />} />}
           {hasAccess('/configuracion/estados') && <Route path="estados" element={<EstadosPage />} />}
         </Route>

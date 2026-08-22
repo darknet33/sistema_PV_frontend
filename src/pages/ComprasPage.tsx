@@ -187,6 +187,9 @@ export default function ComprasPage() {
     setNumComprobanteAuto('')
     setAutoNum(false)
     form.resetFields()
+    form.setFieldsValue({
+      fecha: dayjs(),
+    })
     setModalVisible(true)
   }
 

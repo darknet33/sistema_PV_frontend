@@ -43,27 +43,38 @@ export const fetchGastoReportBlob = async (
   return response.data
 }
 
-const categoriaGastoService = {
-  getAll: async () => {
-    const { data } = await api.get<CategoriaGasto[]>('/categorias-gastos/')
-    return data
-  },
+export const downloadGastoReport = fetchGastoReportBlob
+
+
+export const getCategoriasGastos = async (): Promise<CategoriaGasto[]> => {
+  const { data } = await api.get<CategoriaGasto[]>('/categorias-gastos/')
+  return data
+}
+
+export const createCategoriaGasto = async (categoria: CategoriaGastoCreate): Promise<CategoriaGasto> => {
+  const { data } = await api.post<CategoriaGasto>('/categorias-gastos/', categoria)
+  return data
+}
+
+export const updateCategoriaGasto = async (id: number, categoria: CategoriaGastoCreate): Promise<CategoriaGasto> => {
+  const { data } = await api.put<CategoriaGasto>(`/categorias-gastos/${id}`, categoria)
+  return data
+}
+
+export const deleteCategoriaGasto = async (id: number): Promise<void> => {
+  await api.delete(`/categorias-gastos/${id}`)
+}
+
+export const categoriaGastoService = {
+  getAll: getCategoriasGastos,
   getById: async (id: number) => {
     const { data } = await api.get<CategoriaGasto>(`/categorias-gastos/${id}`)
     return data
   },
-  create: async (categoria: CategoriaGastoCreate) => {
-    const { data } = await api.post<CategoriaGasto>('/categorias-gastos/', categoria)
-    return data
-  },
-  update: async (id: number, categoria: CategoriaGastoCreate) => {
-    const { data } = await api.put<CategoriaGasto>(`/categorias-gastos/${id}`, categoria)
-    return data
-  },
-  delete: async (id: number) => {
-    const { data } = await api.delete(`/categorias-gastos/${id}`)
-    return data
-  },
+  create: createCategoriaGasto,
+  update: updateCategoriaGasto,
+  delete: deleteCategoriaGasto,
 }
 
 export default categoriaGastoService
+

@@ -205,7 +205,13 @@ export default function CotizacionesPage() {
     setEditingCotizacion(null)
     setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, dias_disponibilidad: null }])
     form.resetFields()
-    form.setFieldsValue({ con_factura: false, incluir_imagenes: false, validez_dias: 15, descuento: 0 })
+    form.setFieldsValue({
+      fecha: dayjs(),
+      con_factura: false,
+      incluir_imagenes: false,
+      validez_dias: 15,
+      descuento: 0,
+    })
     setModalVisible(true)
   }
 

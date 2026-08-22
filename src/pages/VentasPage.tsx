@@ -205,6 +205,11 @@ export default function VentasPage() {
     setNumComprobanteAuto('')
     setAutoNum(true)
     form.resetFields()
+    form.setFieldsValue({
+      fecha: dayjs(),
+      impuesto: 0,
+      descuento: 0,
+    })
     setModalVisible(true)
   }
 
