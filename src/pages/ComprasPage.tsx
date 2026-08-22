@@ -16,10 +16,10 @@ import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
 import categoriaService from '../services/categoriaService'
 import { formatCurrency } from '../utils/format'
-import { calcularPrecioBase } from '../utils/pricing'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
+import ProductoSelectorModal from '../components/ProductoSelectorModal'
 
 const { useBreakpoint } = Grid
 
@@ -61,7 +61,6 @@ export default function ComprasPage() {
 
   const [productoModalVisible, setProductoModalVisible] = useState(false)
   const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
-  const [productoSearchText, setProductoSearchText] = useState('')
 
   const proveedorOptions = useMemo(() =>
     proveedores.filter((p) => p.activo !== false).map((p) => ({ value: p.id, label: p.nombre })),
@@ -83,24 +82,6 @@ export default function ComprasPage() {
     categorias.forEach((c) => map.set(c.id, c.nombre))
     return map
   }, [categorias])
-
-  const productosActivos = useMemo(() =>
-    productos.filter((p) => p.activo !== false),
-    [productos]
-  )
-
-  const filteredProductos = useMemo(() => {
-    const base = productosActivos
-    if (!productoSearchText) return base
-    const q = productoSearchText.toLowerCase()
-    return base.filter((p) => {
-      const catNombre = catMap.get(p.categoria_id) || ''
-      return p.codigo.toLowerCase().includes(q) ||
-        p.descripcion.toLowerCase().includes(q) ||
-        p.marca.toLowerCase().includes(q) ||
-        catNombre.toLowerCase().includes(q)
-    })
-  }, [productosActivos, productoSearchText, catMap])
 
   const loadCompras = useCallback(async () => {
     setLoading(true)
@@ -310,14 +291,12 @@ export default function ComprasPage() {
 
   const openProductoModal = (detKey: string) => {
     setSelectedDetalleKey(detKey)
-    setProductoSearchText('')
     setProductoModalVisible(true)
   }
 
   const selectProducto = (producto: Producto) => {
     if (selectedDetalleKey) {
-      const p = productosActivos.find((p2) => p2.id === producto.id)
-      const costo = Number(p?.precio ?? producto.precio ?? 0)
+      const costo = Number(producto.precio ?? 0)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
           ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', costo }
@@ -413,29 +392,6 @@ export default function ComprasPage() {
       />
     )
   }
-
-  const productoColumns: ColumnsType<Producto> = [
-    {
-      title: 'Producto',
-      key: 'producto',
-      render: (_, r) => (
-        <div>
-          <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
-          <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
-        </div>
-      ),
-    },
-    { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    {
-      title: 'Precio Base', key: 'precio_base', width: 100,
-      render: (_, r) => {
-        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0))
-        return `Bs. ${pb.toFixed(2)}`
-      },
-    },
-    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 60 },
-  ]
 
   const fabVisible = isMobile && !modalVisible
 
@@ -655,34 +611,12 @@ export default function ComprasPage() {
         </Form>
       </Modal>
 
-      <Modal
-        title="Seleccionar producto"
-        open={productoModalVisible}
+      <ProductoSelectorModal
+        visible={productoModalVisible}
         onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
-        footer={null}
-        width={700}
-        className="responsive-modal"
-      >
-        <Input.Search
-          placeholder="Buscar por código, descripción o marca"
-          allowClear
-          className="mb-3"
-          value={productoSearchText}
-          onChange={(e) => setProductoSearchText(e.target.value)}
-        />
-        <Table
-          columns={productoColumns}
-          dataSource={filteredProductos}
-          rowKey="id"
-          size="small"
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 8 }}
-          onRow={(record) => ({
-            onClick: () => selectProducto(record),
-            style: { cursor: 'pointer' },
-          })}
-        />
-      </Modal>
+        onSelect={selectProducto}
+        showCostInfo
+      />
       {previewModal}
     </div>
   )

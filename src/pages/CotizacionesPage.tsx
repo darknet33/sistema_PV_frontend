@@ -28,7 +28,8 @@ import SubCrudSelect from '../components/SubCrudSelect'
 
 const { useBreakpoint } = Grid
 
-const IVA_RATE = 16
+const IVA_RATE = 13
+const IT_RATE = 3
 
 const FORMA_PAGO_OPTIONS = ['Transferencia SIGEP', 'Cheque', 'Al contado']
 
@@ -42,6 +43,8 @@ interface DetalleLine {
   costo: number
   utilidad_pct: number
   precio_venta: number
+  stock_actual: number
+  dias_disponibilidad: number | null
 }
 
 const estadoColor: Record<string, string> = {
@@ -200,7 +203,7 @@ export default function CotizacionesPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingCotizacion(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0 }])
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, dias_disponibilidad: null }])
     form.resetFields()
     form.setFieldsValue({ con_factura: false, incluir_imagenes: false, validez_dias: 15, descuento: 0 })
     setModalVisible(true)
@@ -231,7 +234,9 @@ export default function CotizacionesPage() {
         costo: Number(d.costo || 0),
         utilidad_pct: Number(d.utilidad_pct || 0),
         precio_venta: Number(d.precio_venta || 0),
-      })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0 }]
+        stock_actual: Number(d.stock_actual || 0),
+        dias_disponibilidad: d.dias_disponibilidad ?? null,
+      })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, dias_disponibilidad: null }]
     )
     setModalVisible(true)
   }
@@ -260,6 +265,7 @@ export default function CotizacionesPage() {
           cantidad: d.cantidad,
           costo: d.costo,
           utilidad_pct: d.utilidad_pct,
+          dias_disponibilidad: d.dias_disponibilidad,
         })),
       }
 
@@ -301,7 +307,7 @@ export default function CotizacionesPage() {
   }
 
   const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0 }])
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, dias_disponibilidad: null }])
   }
 
   const removeDetalleRow = (key: string) => {
@@ -328,6 +334,7 @@ export default function CotizacionesPage() {
               costo,
               utilidad_pct,
               precio_venta: calcularPrecioVenta(costo, utilidad_pct),
+              stock_actual: Number((producto as any).stock_actual || 0),
             }
           : d
       ))
@@ -367,13 +374,17 @@ export default function CotizacionesPage() {
     return conFactura ? Math.round(subtotalCalculado * IVA_RATE) / 100 : 0
   }, [subtotalCalculado, conFactura])
 
+  const itCalculado = useMemo(() => {
+    return conFactura ? Math.round(subtotalCalculado * IT_RATE) / 100 : 0
+  }, [subtotalCalculado, conFactura])
+
   const descuentoCalculado = useMemo(() => {
     return Math.round(subtotalCalculado * descuentoPct) / 100
   }, [subtotalCalculado, descuentoPct])
 
   const totalCalculado = useMemo(() => {
-    return Math.round((subtotalCalculado + ivaCalculado - descuentoCalculado) * 100) / 100
-  }, [subtotalCalculado, ivaCalculado, descuentoCalculado])
+    return Math.round((subtotalCalculado + ivaCalculado + itCalculado - descuentoCalculado) * 100) / 100
+  }, [subtotalCalculado, ivaCalculado, itCalculado, descuentoCalculado])
 
   const handlePdfPreview = async (id: number) => {
     await openPdf(() => fetchCotizacionPdfBlob(id), `Cotización #${id}`, `cotizacion_${id}.pdf`)
@@ -418,11 +429,19 @@ export default function CotizacionesPage() {
   const detColumns: ColumnsType<any> = [
     { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 90 },
     { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
-    { title: 'Cant.', dataIndex: 'cantidad', key: 'cantidad', width: 60 },
+    { title: 'Cant.', dataIndex: 'cantidad', key: 'cantidad', width: 60, render: (_: any, r: any) => (
+      <div>
+        <div>{r.cantidad}</div>
+        {r.cantidad > r.stock_actual && (
+          <div className="text-xs text-red-500 font-medium">Stock: {r.stock_actual}</div>
+        )}
+      </div>
+    )},
     { title: 'Costo', dataIndex: 'costo', key: 'costo', width: 90, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Util. %', dataIndex: 'utilidad_pct', key: 'utilidad_pct', width: 70, render: (val: any) => `${Number(val || 0).toFixed(2)}%` },
     { title: 'P. Venta', dataIndex: 'precio_venta', key: 'precio_venta', width: 90, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio_venta || 0)).toFixed(2)}` },
+    { title: 'Disponible en', dataIndex: 'dias_disponibilidad', key: 'dias_disponibilidad', width: 110, render: (val: any) => val != null ? `${val} día(s)` : '-' },
   ]
 
   const columns: ColumnsType<Cotizacion> = [
@@ -432,6 +451,7 @@ export default function CotizacionesPage() {
     { title: 'Estado', dataIndex: 'estado', key: 'estado', render: (val: string) => <Tag color={estadoColor[val]}>{val}</Tag> },
     { title: 'Subtotal', dataIndex: 'subtotal', key: 'subtotal', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'IVA', dataIndex: 'iva', key: 'iva', render: (val: any) => (Number(val || 0) > 0 ? `Bs. ${Number(val).toFixed(2)}` : '-') },
+    { title: 'IT', dataIndex: 'it', key: 'it', render: (val: any) => (Number(val || 0) > 0 ? `Bs. ${Number(val).toFixed(2)}` : '-') },
     { title: 'Desc.', dataIndex: 'descuento', key: 'descuento', render: (val: any) => (Number(val || 0) > 0 ? `${Number(val)}%` : '-') },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Vence', dataIndex: 'fecha_vencimiento', key: 'fecha_vencimiento', render: (val: string) => dayjs(val).format('DD/MM/YYYY') },
@@ -647,7 +667,7 @@ export default function CotizacionesPage() {
 
           <div className="flex justify-between items-center mb-2">
             <strong>Detalles de la cotización</strong>
-            {conFactura && <Tag color="orange">IVA {IVA_RATE}%</Tag>}
+            {conFactura && <Tag color="orange">IVA {IVA_RATE}% + IT {IT_RATE}%</Tag>}
           </div>
 
           {detalles.map((det, index) => (
@@ -708,6 +728,16 @@ export default function CotizacionesPage() {
                   />
                 </Form.Item>
               </div>
+              <div className="w-[80px] shrink-0">
+                <Form.Item label={index === 0 ? 'Días disp.' : ''} className="!mb-0">
+                  <InputNumber
+                    min={0}
+                    className="w-full"
+                    value={det.dias_disponibilidad}
+                    onChange={(val) => updateDetalle(det.key, 'dias_disponibilidad', val ?? null)}
+                  />
+                </Form.Item>
+              </div>
               <div className="w-[95px] shrink-0">
                 <Form.Item label={index === 0 ? 'Subtotal' : ''} className="!mb-0">
                   <InputNumber
@@ -733,9 +763,14 @@ export default function CotizacionesPage() {
           <div className="text-right font-bold">
             <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
             {conFactura && (
-              <div className="font-normal text-sm text-orange-500">
-                IVA ({IVA_RATE}%): Bs. {ivaCalculado.toFixed(2)}
-              </div>
+              <>
+                <div className="font-normal text-sm text-orange-500">
+                  IVA ({IVA_RATE}%): Bs. {ivaCalculado.toFixed(2)}
+                </div>
+                <div className="font-normal text-sm text-orange-500">
+                  IT ({IT_RATE}%): Bs. {itCalculado.toFixed(2)}
+                </div>
+              </>
             )}
             {descuentoPct > 0 && (
               <div className="font-normal text-sm text-green-600">
@@ -843,7 +878,12 @@ export default function CotizacionesPage() {
                 </div>
                 {Number(detailCotizacion.iva || 0) > 0 && (
                   <div className="font-normal text-sm text-orange-500">
-                    IVA (16%): Bs. {Number(detailCotizacion.iva).toFixed(2)}
+                    IVA (13%): Bs. {Number(detailCotizacion.iva).toFixed(2)}
+                  </div>
+                )}
+                {Number(detailCotizacion.it || 0) > 0 && (
+                  <div className="font-normal text-sm text-orange-500">
+                    IT (3%): Bs. {Number(detailCotizacion.it).toFixed(2)}
                   </div>
                 )}
                 {Number(detailCotizacion.descuento || 0) > 0 && (
@@ -910,7 +950,7 @@ export default function CotizacionesPage() {
         </Form>
         {convertCotizacion?.con_factura && (
           <div className="text-sm text-orange-500">
-            La venta incluirá IVA (16%) porque la cotización es con factura.
+            La venta incluirá IVA (13%) + IT (3%) porque la cotización es con factura.
           </div>
         )}
         {convertCotizacion && Number(convertCotizacion.descuento || 0) > 0 && (

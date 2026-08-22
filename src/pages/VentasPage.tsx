@@ -21,6 +21,7 @@ import { calcularPrecioBase } from '../utils/pricing'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
+import ProductoSelectorModal from '../components/ProductoSelectorModal'
 
 const { useBreakpoint } = Grid
 
@@ -65,7 +66,6 @@ export default function VentasPage() {
 
   const [productoModalVisible, setProductoModalVisible] = useState(false)
   const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
-  const [productoSearchText, setProductoSearchText] = useState('')
 
   const [notaModalVisible, setNotaModalVisible] = useState(false)
   const [notaVenta, setNotaVenta] = useState<Venta | null>(null)
@@ -100,24 +100,6 @@ export default function VentasPage() {
     categorias.forEach((c) => map.set(c.id, c.nombre))
     return map
   }, [categorias])
-
-  const productosActivos = useMemo(() =>
-    productos.filter((p) => p.activo !== false),
-    [productos]
-  )
-
-  const filteredProductos = useMemo(() => {
-    const base = productosActivos
-    if (!productoSearchText) return base
-    const q = productoSearchText.toLowerCase()
-    return base.filter((p) => {
-      const catNombre = catMap.get(p.categoria_id) || ''
-      return p.codigo.toLowerCase().includes(q) ||
-        p.descripcion.toLowerCase().includes(q) ||
-        p.marca.toLowerCase().includes(q) ||
-        catNombre.toLowerCase().includes(q)
-    })
-  }, [productosActivos, productoSearchText, catMap])
 
   const loadVentas = useCallback(async () => {
     setLoading(true)
@@ -339,7 +321,6 @@ export default function VentasPage() {
 
   const openProductoModal = (detKey: string) => {
     setSelectedDetalleKey(detKey)
-    setProductoSearchText('')
     setProductoModalVisible(true)
   }
 
@@ -602,29 +583,6 @@ export default function VentasPage() {
       />
     )
   }
-
-  const productoColumns: ColumnsType<Producto> = [
-    {
-      title: 'Producto',
-      key: 'producto',
-      render: (_, r) => (
-        <div>
-          <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
-          <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
-        </div>
-      ),
-    },
-    { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    {
-      title: 'Precio Base', key: 'precio_base', width: 100,
-      render: (_, r) => {
-        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0))
-        return `Bs. ${pb.toFixed(2)}`
-      },
-    },
-    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 60 },
-  ]
 
   const fabVisible = isMobile && !modalVisible
 
@@ -901,34 +859,12 @@ export default function VentasPage() {
         </Form>
       </Modal>
 
-      <Modal
-        title="Seleccionar producto"
-        open={productoModalVisible}
+      <ProductoSelectorModal
+        visible={productoModalVisible}
         onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
-        footer={null}
-        width={700}
-        className="responsive-modal"
-      >
-        <Input.Search
-          placeholder="Buscar por código, descripción o marca"
-          allowClear
-          className="mb-3"
-          value={productoSearchText}
-          onChange={(e) => setProductoSearchText(e.target.value)}
-        />
-        <Table
-          columns={productoColumns}
-          dataSource={filteredProductos}
-          rowKey="id"
-          size="small"
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 8 }}
-          onRow={(record) => ({
-            onClick: () => selectProducto(record),
-            style: { cursor: 'pointer' },
-          })}
-        />
-      </Modal>
+        onSelect={selectProducto}
+        showCostInfo
+      />
 
       <Modal
         title={notaVenta ? `Nota de Entrega - Venta #${notaVenta.id}` : 'Nota de Entrega'}

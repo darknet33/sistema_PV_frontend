@@ -3,6 +3,7 @@ export interface CotizacionDetalleCreate {
   cantidad: number
   costo: number
   utilidad_pct: number
+  dias_disponibilidad?: number | null
 }
 
 export interface CotizacionDetalleResponse {
@@ -16,6 +17,8 @@ export interface CotizacionDetalleResponse {
   costo: number
   utilidad_pct: number
   precio_venta: number
+  stock_actual: number
+  dias_disponibilidad: number | null
 }
 
 export interface CotizacionCreate {
@@ -63,6 +66,7 @@ export interface Cotizacion {
   terminos_condiciones: string
   subtotal: number
   iva: number
+  it: number
   descuento: number
   total: number
   activo: boolean

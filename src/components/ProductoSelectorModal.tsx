@@ -6,19 +6,22 @@ import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
 import { getProductos } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
+import { calcularPrecioBase } from '../utils/pricing'
 
 interface ProductoSelectorModalProps {
   visible: boolean
   onCancel: () => void
   onSelect: (producto: Producto) => void
+  showCostInfo?: boolean
 }
 
-export default function ProductoSelectorModal({ visible, onCancel, onSelect }: ProductoSelectorModalProps) {
+export default function ProductoSelectorModal({ visible, onCancel, onSelect, showCostInfo = false }: ProductoSelectorModalProps) {
   const [productos, setProductos] = useState<Producto[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [categoriaFilter, setCategoriaFilter] = useState<number | null>(null)
+  const [procedenciaFilter, setProcedenciaFilter] = useState<string | null>(null)
 
   useEffect(() => {
     if (!visible) return
@@ -34,6 +37,15 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
       .finally(() => setLoading(false))
   }, [visible])
 
+  const procedenciaOptions = useMemo(() => {
+    const vals = new Set<string>()
+    productos.forEach((p) => {
+      const v = (p.procedencia || '').trim()
+      if (v) vals.add(v)
+    })
+    return Array.from(vals).sort().map((v) => ({ value: v, label: v }))
+  }, [productos])
+
   const filtered = useMemo(() => {
     let result = productos
     if (searchText) {
@@ -42,14 +54,18 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
         (p) =>
           p.codigo.toLowerCase().includes(q) ||
           p.descripcion.toLowerCase().includes(q) ||
-          p.marca.toLowerCase().includes(q),
+          p.marca.toLowerCase().includes(q) ||
+          (p.procedencia || '').toLowerCase().includes(q),
       )
     }
     if (categoriaFilter) {
       result = result.filter((p) => p.categoria_id === categoriaFilter)
     }
+    if (procedenciaFilter) {
+      result = result.filter((p) => (p.procedencia || '') === procedenciaFilter)
+    }
     return result
-  }, [productos, searchText, categoriaFilter])
+  }, [productos, searchText, categoriaFilter, procedenciaFilter])
 
   const catMap = useMemo(() => {
     const m = new Map<number, string>()
@@ -58,7 +74,7 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
   }, [categorias])
 
   const columns: ColumnsType<Producto> = [
-    { title: 'Código', dataIndex: 'codigo', width: 80 },
+    ...(showCostInfo ? [] : [{ title: 'Código', dataIndex: 'codigo', key: 'codigo', width: 80 }]),
     {
       title: 'Producto',
       key: 'producto',
@@ -73,23 +89,31 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
           )}
           <div>
             <span style={{ fontWeight: 500 }}>{`[${r.codigo}] ${catMap.get(r.categoria_id ?? 0) ?? ''} - ${r.descripcion}`}</span>
-            <span style={{ color: '#888', marginLeft: 8, fontSize: 12 }}>{r.marca}</span>
+            <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+              {r.marca && <span style={{ color: '#888', fontSize: 12 }}>{r.marca}</span>}
+              {(r.procedencia || '') && <span style={{ color: '#aaa', fontSize: 12 }}>{r.procedencia}</span>}
+            </div>
           </div>
         </div>
       ),
     },
+    ...(showCostInfo
+      ? [
+          { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, align: 'right' as const, render: (v: number) => `Bs. ${Number(v || 0).toFixed(2)}` },
+          { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, align: 'right' as const, render: (v: number) => `Bs. ${Number(v || 0).toFixed(2)}` },
+          {
+            title: 'Precio Base', key: 'precio_base', width: 100, align: 'right' as const,
+            render: (_: unknown, r: Producto) => `Bs. ${calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0)).toFixed(2)}`,
+          },
+        ]
+      : [
+          {
+            title: 'Precio', dataIndex: 'precio', key: 'precio', width: 100, align: 'right' as const,
+            render: (v: number) => `Bs. ${Number(v || 0).toFixed(2)}`,
+          },
+        ]),
     {
-      title: 'Precio',
-      dataIndex: 'precio',
-      width: 100,
-      align: 'right',
-      render: (v: number) => `Bs. ${Number(v || 0).toFixed(2)}`,
-    },
-    {
-      title: 'Stock',
-      dataIndex: 'stock_actual',
-      width: 70,
-      align: 'center',
+      title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 70, align: 'center' as const,
       render: (v: number, r: Producto) => {
         const color = v <= (r.stock_minimo ?? 0) ? 'red' : 'green'
         return <Tag color={color}>{v}</Tag>
@@ -103,13 +127,13 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
         open={visible}
         onCancel={onCancel}
         footer={null}
-        width={700}
+        width={showCostInfo ? 900 : 700}
         className="responsive-modal"
       >
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           <Input
             prefix={<SearchOutlined />}
-            placeholder="Buscar por código, descripción o marca"
+            placeholder="Buscar por código, descripción, marca o procedencia"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             style={{ flex: 1, minWidth: 180 }}
@@ -118,10 +142,19 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect }: P
           <Select
             placeholder="Categoría"
             allowClear
-            style={{ width: 160, minWidth: 140 }}
+            style={{ width: 150, minWidth: 130 }}
             value={categoriaFilter}
             onChange={setCategoriaFilter}
             options={categorias.map((c) => ({ value: c.id, label: c.nombre }))}
+          />
+          <Select
+            placeholder="Procedencia"
+            allowClear
+            showSearch
+            style={{ width: 150, minWidth: 130 }}
+            value={procedenciaFilter}
+            onChange={setProcedenciaFilter}
+            options={procedenciaOptions}
           />
         </div>
         <Table
