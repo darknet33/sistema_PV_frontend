@@ -39,7 +39,7 @@ export default function LoginPage() {
     try {
       await login(values)
       message.success('Bienvenido al Sistema de Inventario')
-      navigate('/')
+      navigate('/dashboard')
     } catch (error: any) {
       if (error.response?.status === 401) {
         notification.error({
@@ -62,7 +62,7 @@ export default function LoginPage() {
     try {
       await setupAdmin(values)
       message.success('Administrador creado correctamente')
-      navigate('/')
+      navigate('/dashboard')
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'No se pudo crear el administrador')
     } finally {
