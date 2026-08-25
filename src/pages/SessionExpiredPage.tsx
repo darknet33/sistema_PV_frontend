@@ -4,6 +4,7 @@ import { Button, Card } from 'antd'
 import { LogoutOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
+import { resolveUrl } from '../utils/resolveUrl'
 
 export default function SessionExpiredPage() {
   const navigate = useNavigate()
@@ -22,7 +23,7 @@ export default function SessionExpiredPage() {
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', textAlign: 'center' }}>
         <div style={{ marginBottom: 24 }}>
           {empresa?.logo ? (
-            <img src={empresa.logo} alt="Logo" style={{ maxHeight: 80, maxWidth: '100%', objectFit: 'contain' }} />
+            <img src={resolveUrl(empresa.logo)} alt="Logo" style={{ maxHeight: 80, maxWidth: '100%', objectFit: 'contain' }} />
           ) : (
             <h1 style={{ color: primary }}>Sistema de Inventario</h1>
           )}

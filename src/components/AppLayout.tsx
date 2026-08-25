@@ -10,6 +10,7 @@ import {
 import type { MenuProps } from 'antd'
 import { useAuthStore } from '../stores/authStore'
 import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
+import { resolveUrl } from '../utils/resolveUrl'
 
 const { Header, Sider, Content } = Layout
 const { useBreakpoint } = Grid
@@ -61,7 +62,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
     <>
       <div className="h-16 flex items-center justify-center text-white font-bold text-xl overflow-hidden px-2">
         {empresa?.logo ? (
-          <img src={empresa.logo} alt="Logo" className="max-h-12 max-w-full object-contain" />
+          <img src={resolveUrl(empresa.logo)} alt="Logo" className="max-h-12 max-w-full object-contain" />
         ) : (
           !isMobile && !collapsed && 'Sistema de Inventario'
         )}
@@ -90,7 +91,7 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
         <Drawer
           title={
             empresa?.logo ? (
-              <img src={empresa.logo} alt="Logo" style={{ maxHeight: 40, maxWidth: '100%', objectFit: 'contain' }} />
+              <img src={resolveUrl(empresa.logo)} alt="Logo" style={{ maxHeight: 40, maxWidth: '100%', objectFit: 'contain' }} />
             ) : (
               'Sistema de Inventario'
             )

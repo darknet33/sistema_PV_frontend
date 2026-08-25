@@ -8,6 +8,7 @@ import { getProductos, createProducto, updateProducto, deleteProducto, togglePro
 import categoriaService from '../services/categoriaService'
 import type { Categoria } from '../types/categoria'
 import { calcularPrecioBase } from '../utils/pricing'
+import { resolveUrl } from '../utils/resolveUrl'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
@@ -233,7 +234,7 @@ export default function ProductosPage() {
         key: 'imagen',
         width: 70,
         render: (_, r) =>
-          r.imagen ? <AntImage src={r.imagen} width={40} height={40} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <span className="text-gray-300">-</span>,
+          r.imagen ? <AntImage src={resolveUrl(r.imagen)} width={40} height={40} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <span className="text-gray-300">-</span>,
       },
       { title: 'Procedencia', dataIndex: 'procedencia', key: 'procedencia', render: (val) => val || '-' },
       { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
@@ -255,7 +256,7 @@ export default function ProductosPage() {
       {
         title: 'Acciones', key: 'acciones', render: (_, record) => (
           <div className="flex gap-1">
-            <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setImageFileList(record.imagen ? [{ uid: '-1', name: 'imagen', status: 'done', url: record.imagen }] : []); setModalVisible(true) }} />
+            <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setImageFileList(record.imagen ? [{ uid: '-1', name: 'imagen', status: 'done', url: resolveUrl(record.imagen) }] : []); setModalVisible(true) }} />
             <Popconfirm title="¿Eliminar producto?" onConfirm={() => handleDelete(record.id)}>
               <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
             </Popconfirm>

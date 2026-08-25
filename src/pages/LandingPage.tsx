@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Typography } from 'antd'
 import { LoginOutlined } from '@ant-design/icons'
 import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
+import { resolveUrl } from '../utils/resolveUrl'
 import { useEffect } from 'react'
 
 const { Title, Paragraph, Text } = Typography
@@ -36,7 +37,7 @@ export default function LandingPage() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {empresa?.logo ? (
-            <img src={empresa.logo} alt="Logo" style={{ height: 48, objectFit: 'contain' }} />
+            <img src={resolveUrl(empresa.logo)} alt="Logo" style={{ height: 48, objectFit: 'contain' }} />
           ) : (
             <Text strong style={{ fontSize: 22, color: '#fff' }}>YCT</Text>
           )}

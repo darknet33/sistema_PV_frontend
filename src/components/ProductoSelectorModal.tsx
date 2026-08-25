@@ -7,6 +7,7 @@ import type { Categoria } from '../types/categoria'
 import { getProductos } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
 import { calcularPrecioBase } from '../utils/pricing'
+import { resolveUrl } from '../utils/resolveUrl'
 
 interface ProductoSelectorModalProps {
   visible: boolean
@@ -82,7 +83,7 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect, sho
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {r.imagen && (
             <img
-              src={r.imagen}
+              src={resolveUrl(r.imagen)}
               alt=""
               style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
             />

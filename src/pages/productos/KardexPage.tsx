@@ -8,6 +8,7 @@ import ProductoSelectorModal from '../../components/ProductoSelectorModal'
 import { getKardexMovimientos } from '../../services/reporteService'
 import type { KardexMovimiento, KardexResponse } from '../../types/reporte'
 import usePdfPreview from '../../hooks/usePdfPreview'
+import { resolveUrl } from '../../utils/resolveUrl'
 import api from '../../services/api'
 import type { Producto } from '../../types/producto'
 
@@ -165,7 +166,7 @@ export default function KardexPage() {
             <div style={{ display: 'flex', gap: 20, marginBottom: 16, flexWrap: 'wrap' }}>
               {data?.producto.imagen ? (
                 <AntImage
-                  src={data.producto.imagen}
+                  src={resolveUrl(data.producto.imagen)}
                   alt={data.producto.descripcion}
                   width={120}
                   height={120}

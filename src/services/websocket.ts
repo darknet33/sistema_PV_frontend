@@ -14,6 +14,12 @@ class WebSocketClient {
   }
 
   private getUrl(): string {
+    const apiUrl = import.meta.env.VITE_API_URL
+    if (apiUrl) {
+      const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:'
+      const host = apiUrl.replace(/^https?:\/\//, '')
+      return `${wsProtocol}//${host}/api/ws/${this.room}`
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     return `${protocol}//${window.location.host}/api/ws/${this.room}`
   }
