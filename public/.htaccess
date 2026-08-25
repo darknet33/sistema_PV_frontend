@@ -6,7 +6,7 @@ RewriteRule ^api/ws/(.*) wss://api.yctbolivia.com/api/ws/$1 [P,L]
 
 # Proxy API (REST)
 RewriteCond %{HTTP:Upgrade} !=websocket [NC]
-RewriteRule ^api/(.*) https://api.yctbolivia.com/api/$1 [P,L]
+RewriteRule ^api(.*) https://api.yctbolivia.com/api$1 [P,L]
 
 # Proxy uploads (imágenes de empresa, productos, etc.)
 RewriteRule ^uploads/(.*) https://api.yctbolivia.com/uploads/$1 [P,L]
