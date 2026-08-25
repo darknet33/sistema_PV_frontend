@@ -38,6 +38,7 @@ import RolesPage from './pages/configuracion/RolesPage'
 import ModulosPage from './pages/configuracion/ModulosPage'
 import ComprobantesPage from './pages/configuracion/ComprobantesPage'
 import EstadosPage from './pages/configuracion/EstadosPage'
+import PerfilPage from './pages/PerfilPage'
 
 type MenuItem = Required<MenuProps>['items'][number]
 
@@ -173,6 +174,8 @@ function App() {
 
         {hasAccess('/dashboard/gastos') && <Route path="gastos" element={<GastosPage />} />}
         {hasAccess('/dashboard/reportes') && <Route path="reportes" element={<ReportesPage />} />}
+
+        <Route path="perfil" element={<PerfilPage />} />
 
         <Route path="configuracion" element={<ConfiguracionesPage />}>
           {hasAccess('/dashboard/configuracion/empresa') && <Route path="empresa" element={<EmpresaPage />} />}

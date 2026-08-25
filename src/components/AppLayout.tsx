@@ -48,6 +48,12 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
 
   const userMenuItems: MenuProps['items'] = [
     {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: 'Mi Perfil',
+      onClick: () => navigate('/dashboard/perfil'),
+    },
+    {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: 'Cerrar Sesión',
