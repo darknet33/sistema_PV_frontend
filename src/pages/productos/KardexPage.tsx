@@ -112,7 +112,7 @@ export default function KardexPage() {
       dataIndex: 'cantidad',
       width: 110,
       align: 'right' as const,
-      render: (v: number, r) => (r.tipo === 'SALDO INICIAL' ? '-' : v),
+      render: (v: number, r) => (r.tipo === 'SALDO INICIAL' ? '-' : `${v} ${data?.producto?.unidad_principal?.unidad_abreviatura || ''}`),
     },
     {
       title: 'Precio/Costo Bs.',
@@ -206,14 +206,14 @@ export default function KardexPage() {
                     { key: 'procedencia', label: 'Procedencia', children: data?.producto.procedencia || '-' },
                     { key: 'costo', label: 'Costo Bs.', children: `Bs. ${Number(data?.producto.precio ?? 0).toFixed(2)}` },
                     { key: 'utilidad', label: 'Utilidad Bs.', children: `Bs. ${Number(data?.producto.utilidad ?? 0).toFixed(2)}` },
-                    { key: 'stock_ini', label: 'Stock Inicial', children: data?.producto.stock_inicial ?? '-' },
+                    { key: 'stock_ini', label: 'Stock Inicial', children: `${data?.producto.stock_inicial ?? '-'} ${data?.producto?.unidad_principal?.unidad_abreviatura || ''}` },
                     {
                       key: 'stock_act',
                       label: 'Stock Actual',
-                      children: <strong>{data?.producto.stock_actual ?? '-'}</strong>,
+                      children: <strong>{`${data?.producto.stock_actual ?? '-'} ${data?.producto?.unidad_principal?.unidad_abreviatura || ''}`}</strong>,
                     },
-                    { key: 'stock_min', label: 'Stock Mínimo', children: data?.producto.stock_minimo ?? '-' },
-                    { key: 'stock_max', label: 'Stock Máximo', children: data?.producto.stock_maximo ?? '-' },
+                    { key: 'stock_min', label: 'Stock Mínimo', children: `${data?.producto.stock_minimo ?? '-'} ${data?.producto?.unidad_principal?.unidad_abreviatura || ''}` },
+                    { key: 'stock_max', label: 'Stock Máximo', children: `${data?.producto.stock_maximo ?? '-'} ${data?.producto?.unidad_principal?.unidad_abreviatura || ''}` },
                   ]}
                 />
               </div>

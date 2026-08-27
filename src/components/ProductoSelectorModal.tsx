@@ -114,10 +114,11 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect, sho
           },
         ]),
     {
-      title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 70, align: 'center' as const,
+      title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 90, align: 'center' as const,
       render: (v: number, r: Producto) => {
         const color = v <= (r.stock_minimo ?? 0) ? 'red' : 'green'
-        return <Tag color={color}>{v}</Tag>
+        const unit = r.unidad_principal?.unidad_abreviatura || ''
+        return <Tag color={color}>{v} {unit}</Tag>
       },
     },
   ]

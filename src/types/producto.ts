@@ -1,3 +1,5 @@
+import type { ProductoUnidad } from './productoUnidad'
+
 export interface Producto {
   id: number
   codigo: string
@@ -17,6 +19,8 @@ export interface Producto {
   fecha_registro: string
   fecha_actualizado: string | null
   usuario_nombre: string
+  unidades: ProductoUnidad[]
+  unidad_principal: ProductoUnidad | null
 }
 
 export interface ProductoCreate {
@@ -33,6 +37,7 @@ export interface ProductoCreate {
   stock_maximo?: number
   imagen?: string | null
   usuario_id: number
+  unidades?: { unidad_id: number; es_principal: boolean; factor_conversion: number }[]
 }
 
 export interface ProductoUpdate {
@@ -46,4 +51,5 @@ export interface ProductoUpdate {
   stock_maximo?: number
   imagen?: string | null
   activo?: boolean
+  unidades?: { unidad_id: number; es_principal: boolean; factor_conversion: number }[]
 }

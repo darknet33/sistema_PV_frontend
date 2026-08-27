@@ -18,9 +18,11 @@ import comprobanteService from '../services/comprobanteService'
 import estadoService from '../services/estadoService'
 import { getProductos } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
+import unidadMedidaService from '../services/unidadMedidaService'
 import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
+import type { UnidadMedida } from '../types/unidadMedida'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import ProductoSelectorModal from '../components/ProductoSelectorModal'
@@ -39,12 +41,17 @@ interface DetalleLine {
   producto_nombre: string
   producto_codigo: string
   producto_categoria: string
+  unidad_id: number | null
+  unidad_nombre: string
+  unidad_abreviatura: string
+  es_principal: boolean
+  factor_conversion: number
   cantidad: number
   costo: number
   utilidad_pct: number
   precio_venta: number
   stock_actual: number
-  dias_disponibilidad: number | null
+  unidades_disponibles: UnidadMedida[]
 }
 
 const estadoColor: Record<string, string> = {
@@ -74,6 +81,7 @@ export default function CotizacionesPage() {
   const [estados, setEstados] = useState<{ id: number; nombre: string }[]>([])
   const [, setProductos] = useState<Producto[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [allUnidades, setAllUnidades] = useState<UnidadMedida[]>([])
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
 
@@ -162,6 +170,15 @@ export default function CotizacionesPage() {
     }
   }, [])
 
+  const loadUnidades = useCallback(async () => {
+    try {
+      const data = await unidadMedidaService.getAll()
+      setAllUnidades(Array.isArray(data) ? data : [])
+    } catch {
+      message.error('Error al cargar unidades')
+    }
+  }, [])
+
   const loadAllData = useCallback(async () => {
     await Promise.all([
       loadCotizaciones(),
@@ -170,8 +187,9 @@ export default function CotizacionesPage() {
       loadEstados(),
       loadProductos(),
       loadCategorias(),
+      loadUnidades(),
     ])
-  }, [loadCotizaciones, loadClientes, loadComprobantes, loadEstados, loadProductos, loadCategorias])
+  }, [loadCotizaciones, loadClientes, loadComprobantes, loadEstados, loadProductos, loadCategorias, loadUnidades])
 
   useEffect(() => { loadAllData() }, [loadAllData])
 
@@ -203,7 +221,7 @@ export default function CotizacionesPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingCotizacion(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, dias_disponibilidad: null }])
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
     form.resetFields()
     form.setFieldsValue({
       fecha: dayjs(),
@@ -230,19 +248,26 @@ export default function CotizacionesPage() {
       descuento: Number(cot.descuento || 0),
     })
     setDetalles(
-      cot.detalles?.map((d, i) => ({
-        key: String(i + 1),
-        producto_id: d.producto_id,
-        producto_nombre: d.producto_nombre,
-        producto_codigo: d.producto_codigo,
-        producto_categoria: d.producto_categoria || '',
-        cantidad: d.cantidad,
-        costo: Number(d.costo || 0),
-        utilidad_pct: Number(d.utilidad_pct || 0),
-        precio_venta: Number(d.precio_venta || 0),
-        stock_actual: Number(d.stock_actual || 0),
-        dias_disponibilidad: d.dias_disponibilidad ?? null,
-      })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, dias_disponibilidad: null }]
+      cot.detalles?.map((d, i) => {
+        return {
+          key: String(i + 1),
+          producto_id: d.producto_id,
+          producto_nombre: d.producto_nombre,
+          producto_codigo: d.producto_codigo,
+          producto_categoria: d.producto_categoria || '',
+          unidad_id: d.unidad_id || null,
+          unidad_nombre: d.unidad_nombre || '',
+          unidad_abreviatura: d.unidad_abreviatura || '',
+          es_principal: d.es_principal ?? true,
+          factor_conversion: d.factor_conversion ?? 1,
+          cantidad: d.cantidad,
+          costo: Number(d.costo || 0),
+          utilidad_pct: Number(d.utilidad_pct || 0),
+          precio_venta: Number(d.precio_venta || 0),
+          stock_actual: Number(d.stock_actual || 0),
+          unidades_disponibles: allUnidades,
+        }
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }]
     )
     setModalVisible(true)
   }
@@ -268,10 +293,10 @@ export default function CotizacionesPage() {
         descuento: values.descuento || 0,
         detalles: validDetalles.map((d) => ({
           producto_id: d.producto_id!,
+          unidad_id: d.unidad_id,
           cantidad: d.cantidad,
           costo: d.costo,
           utilidad_pct: d.utilidad_pct,
-          dias_disponibilidad: d.dias_disponibilidad,
         })),
       }
 
@@ -313,7 +338,7 @@ export default function CotizacionesPage() {
   }
 
   const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, dias_disponibilidad: null }])
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
   }
 
   const removeDetalleRow = (key: string) => {
@@ -329,6 +354,10 @@ export default function CotizacionesPage() {
     if (selectedDetalleKey) {
       const costo = Number(producto.precio || 0)
       const utilidad_pct = costo > 0 ? (Number(producto.utilidad || 0) / costo) * 100 : 0
+      const unidades = allUnidades
+      const principal = producto.unidad_principal
+      const unidadId = principal ? principal.unidad_id : (unidades.length > 0 ? unidades[0].id : null)
+      const u = principal || (unidades.length > 0 ? unidades[0] : null)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
           ? {
@@ -341,6 +370,12 @@ export default function CotizacionesPage() {
               utilidad_pct,
               precio_venta: calcularPrecioVenta(costo, utilidad_pct),
               stock_actual: Number((producto as any).stock_actual || 0),
+              unidad_id: unidadId,
+               unidad_nombre: ('nombre' in (u as any) ? (u as UnidadMedida)?.nombre : (u as any)?.unidad_nombre) || '',
+               unidad_abreviatura: ('abreviatura' in (u as any) ? (u as UnidadMedida)?.abreviatura : (u as any)?.unidad_abreviatura) || '',
+              es_principal: principal ? true : false,
+              factor_conversion: principal?.factor_conversion || 1,
+              unidades_disponibles: unidades,
             }
           : d
       ))
@@ -435,6 +470,7 @@ export default function CotizacionesPage() {
   const detColumns: ColumnsType<any> = [
     { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 90 },
     { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
+    { title: 'Unidad', key: 'unidad', width: 100, render: (_: any, r: any) => r.unidad_nombre ? `${r.unidad_nombre} (${r.unidad_abreviatura || '-'})` : '-' },
     { title: 'Cant.', dataIndex: 'cantidad', key: 'cantidad', width: 60, render: (_: any, r: any) => (
       <div>
         <div>{r.cantidad}</div>
@@ -443,11 +479,9 @@ export default function CotizacionesPage() {
         )}
       </div>
     )},
-    { title: 'Costo', dataIndex: 'costo', key: 'costo', width: 90, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Util. %', dataIndex: 'utilidad_pct', key: 'utilidad_pct', width: 70, render: (val: any) => `${Number(val || 0).toFixed(2)}%` },
     { title: 'P. Venta', dataIndex: 'precio_venta', key: 'precio_venta', width: 90, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio_venta || 0)).toFixed(2)}` },
-    { title: 'Disponible en', dataIndex: 'dias_disponibilidad', key: 'dias_disponibilidad', width: 110, render: (val: any) => val != null ? `${val} día(s)` : '-' },
   ]
 
   const columns: ColumnsType<Cotizacion> = [
@@ -689,10 +723,31 @@ export default function CotizacionesPage() {
                   />
                 </Form.Item>
               </div>
+              <div className="w-[120px] shrink-0">
+                <Form.Item label={index === 0 ? 'Unidad' : ''} className="!mb-0">
+                  <Select
+                    placeholder="Unidad"
+                    value={det.unidad_id}
+                    onChange={(val) => {
+                      const u = allUnidades.find((uu) => uu.id === val)
+                      updateDetalle(det.key, 'unidad_id', val)
+                      updateDetalle(det.key, 'unidad_nombre', u?.nombre || '')
+                      updateDetalle(det.key, 'unidad_abreviatura', u?.abreviatura || '')
+                    }}
+                    options={allUnidades.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})` }))}
+                    size="small"
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                    }
+                  />
+                </Form.Item>
+              </div>
               <div className="w-[65px] shrink-0">
                 <Form.Item label={index === 0 ? 'Cant.' : ''} className="!mb-0">
                   <InputNumber
-                    min={1}
+                    min={0.01}
+                    step={0.01}
                     className="w-full"
                     value={det.cantidad}
                     onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
@@ -731,16 +786,6 @@ export default function CotizacionesPage() {
                     disabled
                     variant="borderless"
                     prefix="Bs."
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[80px] shrink-0">
-                <Form.Item label={index === 0 ? 'Días disp.' : ''} className="!mb-0">
-                  <InputNumber
-                    min={0}
-                    className="w-full"
-                    value={det.dias_disponibilidad}
-                    onChange={(val) => updateDetalle(det.key, 'dias_disponibilidad', val ?? null)}
                   />
                 </Form.Item>
               </div>

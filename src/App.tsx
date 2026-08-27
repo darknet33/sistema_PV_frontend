@@ -24,6 +24,8 @@ import InicioPage from './pages/InicioPage'
 import ProductosPage from './pages/ProductosPage'
 import CategoriasPage from './pages/productos/CategoriasPage'
 import KardexPage from './pages/productos/KardexPage'
+import CategoriasUnidadPage from './pages/productos/CategoriasUnidadPage'
+import UnidadesPage from './pages/productos/UnidadesPage'
 import ComprasPage from './pages/ComprasPage'
 import ProveedoresPage from './pages/ProveedoresPage'
 import VentasPage from './pages/VentasPage'
@@ -55,6 +57,8 @@ const MODULE_ROUTE_MAP: Record<string, string> = {
   Dashboard: '/dashboard',
   Productos: '/dashboard/productos/lista',
   Categorias: '/dashboard/productos/categorias',
+  'Unidades de Medida': '/dashboard/productos/unidades',
+  'Categorías de Unidad': '/dashboard/productos/categorias-unidad',
   Compras: '/dashboard/entradas/compras',
   Proveedores: '/dashboard/entradas/proveedores',
   Ventas: '/dashboard/salidas/ventas',
@@ -103,6 +107,8 @@ function App() {
       const children: MenuItem[] = []
       children.push(getItem('Lista', '/dashboard/productos/lista', <UnorderedListOutlined />))
       if (hasModule('Categorias')) children.push(getItem('Categorías', '/dashboard/productos/categorias', <AppstoreOutlined />))
+      if (hasModule('Unidades de Medida')) children.push(getItem('Unidades de Medida', '/dashboard/productos/unidades', <AppstoreOutlined />))
+      if (hasModule('Categorías de Unidad')) children.push(getItem('Categorías de Unidad', '/dashboard/productos/categorias-unidad', <AppstoreOutlined />))
       children.push(getItem('Kardex', '/dashboard/productos/kardex', <HistoryOutlined />))
       items.push(getItem('Productos', 'productos-group', <ShoppingCartOutlined />, children))
     }
@@ -165,6 +171,8 @@ function App() {
 
         {hasAccess('/dashboard/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}
         {hasAccess('/dashboard/productos/categorias') && <Route path="productos/categorias" element={<CategoriasPage />} />}
+        {hasAccess('/dashboard/productos/unidades') && <Route path="productos/unidades" element={<UnidadesPage />} />}
+        {hasAccess('/dashboard/productos/categorias-unidad') && <Route path="productos/categorias-unidad" element={<CategoriasUnidadPage />} />}
         {hasModule('Productos') && <Route path="productos/kardex" element={<KardexPage />} />}
         {hasAccess('/dashboard/entradas/compras') && <Route path="entradas/compras" element={<ComprasPage />} />}
         {hasAccess('/dashboard/entradas/proveedores') && <Route path="entradas/proveedores" element={<ProveedoresPage />} />}

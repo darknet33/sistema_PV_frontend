@@ -1,9 +1,9 @@
 export interface CotizacionDetalleCreate {
   producto_id: number
+  unidad_id?: number | null
   cantidad: number
   costo: number
   utilidad_pct: number
-  dias_disponibilidad?: number | null
 }
 
 export interface CotizacionDetalleResponse {
@@ -13,12 +13,17 @@ export interface CotizacionDetalleResponse {
   producto_codigo: string
   producto_categoria: string
   producto_imagen?: string | null
+  unidad_id: number | null
+  unidad_nombre: string
+  unidad_abreviatura: string
+  es_principal: boolean
+  factor_conversion: number
   cantidad: number
   costo: number
   utilidad_pct: number
   precio_venta: number
   stock_actual: number
-  dias_disponibilidad: number | null
+  cantidad_principal: number
 }
 
 export interface CotizacionCreate {

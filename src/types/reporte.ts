@@ -54,6 +54,12 @@ export interface KardexResponse {
     stock_maximo?: number
     imagen?: string | null
     activo?: boolean
+    unidad_principal?: {
+      unidad_id: number
+      unidad_nombre: string
+      unidad_abreviatura: string
+      factor_conversion: number
+    } | null
   }
   movimientos: KardexMovimiento[]
 }

@@ -36,6 +36,7 @@ interface DetalleLine {
   costo: number
   utilidad: number
   stock_actual: number
+  unidad_abreviatura: string
   precioBase: number
 }
 
@@ -201,7 +202,7 @@ export default function VentasPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingVenta(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, precioBase: 0 }])
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, unidad_abreviatura: '', precioBase: 0 }])
     setNumComprobanteAuto('')
     setAutoNum(true)
     form.resetFields()
@@ -244,6 +245,7 @@ export default function VentasPage() {
           costo,
           utilidad,
           stock_actual: p ? p.stock_actual : 0,
+          unidad_abreviatura: p?.unidad_principal?.unidad_abreviatura || '',
           precioBase: calcularPrecioBase(costo, utilidad),
         }
       }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, precioBase: 0 }]
@@ -317,7 +319,7 @@ export default function VentasPage() {
   }
 
   const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, precioBase: 0 }])
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, unidad_abreviatura: '', precioBase: 0 }])
   }
 
   const removeDetalleRow = (key: string) => {
@@ -336,7 +338,7 @@ export default function VentasPage() {
       const precioBase = calcularPrecioBase(costo, utilidad)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
-          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: precioBase, costo, utilidad, stock_actual: producto.stock_actual, precioBase }
+          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: precioBase, costo, utilidad, stock_actual: producto.stock_actual, unidad_abreviatura: producto.unidad_principal?.unidad_abreviatura || '', precioBase }
           : d
       ))
     }
@@ -784,7 +786,7 @@ export default function VentasPage() {
                   />
                   {det.producto_id && det.cantidad > det.stock_actual && (
                     <div className="text-red-500 text-xs leading-[14px] mt-0.5">
-                      Stock: {det.stock_actual}
+                      Stock: {det.stock_actual} {det.unidad_abreviatura}
                     </div>
                   )}
                 </Form.Item>
