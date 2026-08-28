@@ -18,7 +18,7 @@ import comprobanteService from '../services/comprobanteService'
 import estadoService from '../services/estadoService'
 import { getProductos } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
-import unidadMedidaService from '../services/unidadMedidaService'
+
 import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
@@ -79,9 +79,9 @@ export default function CotizacionesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [comprobantes, setComprobantes] = useState<{ id: number; nombre: string; numero: number }[]>([])
   const [estados, setEstados] = useState<{ id: number; nombre: string }[]>([])
-  const [, setProductos] = useState<Producto[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
-  const [allUnidades, setAllUnidades] = useState<UnidadMedida[]>([])
+
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
 
@@ -170,15 +170,6 @@ export default function CotizacionesPage() {
     }
   }, [])
 
-  const loadUnidades = useCallback(async () => {
-    try {
-      const data = await unidadMedidaService.getAll()
-      setAllUnidades(Array.isArray(data) ? data : [])
-    } catch {
-      message.error('Error al cargar unidades')
-    }
-  }, [])
-
   const loadAllData = useCallback(async () => {
     await Promise.all([
       loadCotizaciones(),
@@ -187,9 +178,8 @@ export default function CotizacionesPage() {
       loadEstados(),
       loadProductos(),
       loadCategorias(),
-      loadUnidades(),
     ])
-  }, [loadCotizaciones, loadClientes, loadComprobantes, loadEstados, loadProductos, loadCategorias, loadUnidades])
+  }, [loadCotizaciones, loadClientes, loadComprobantes, loadEstados, loadProductos, loadCategorias])
 
   useEffect(() => { loadAllData() }, [loadAllData])
 
@@ -249,6 +239,15 @@ export default function CotizacionesPage() {
     })
     setDetalles(
       cot.detalles?.map((d, i) => {
+        const prod = productos.find((p) => p.id === d.producto_id)
+        const unidadesProducto: UnidadMedida[] = (prod?.unidades || []).map((pu) => ({
+          id: pu.unidad_id,
+          nombre: pu.unidad_nombre,
+          abreviatura: pu.unidad_abreviatura,
+          categoria_unidad_id: null,
+          activo: true,
+          categoria_nombre: '',
+        }))
         return {
           key: String(i + 1),
           producto_id: d.producto_id,
@@ -265,7 +264,7 @@ export default function CotizacionesPage() {
           utilidad_pct: Number(d.utilidad_pct || 0),
           precio_venta: Number(d.precio_venta || 0),
           stock_actual: Number(d.stock_actual || 0),
-          unidades_disponibles: allUnidades,
+          unidades_disponibles: unidadesProducto,
         }
       }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }]
     )
@@ -354,10 +353,17 @@ export default function CotizacionesPage() {
     if (selectedDetalleKey) {
       const costo = Number(producto.precio || 0)
       const utilidad_pct = costo > 0 ? (Number(producto.utilidad || 0) / costo) * 100 : 0
-      const unidades = allUnidades
+      const unidadesProducto: UnidadMedida[] = (producto.unidades || []).map((pu) => ({
+        id: pu.unidad_id,
+        nombre: pu.unidad_nombre,
+        abreviatura: pu.unidad_abreviatura,
+        categoria_unidad_id: null,
+        activo: true,
+        categoria_nombre: '',
+      }))
       const principal = producto.unidad_principal
-      const unidadId = principal ? principal.unidad_id : (unidades.length > 0 ? unidades[0].id : null)
-      const u = principal || (unidades.length > 0 ? unidades[0] : null)
+      const unidadId = principal ? principal.unidad_id : (unidadesProducto.length > 0 ? unidadesProducto[0].id : null)
+      const u = principal || (unidadesProducto.length > 0 ? unidadesProducto[0] : null)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
           ? {
@@ -375,7 +381,7 @@ export default function CotizacionesPage() {
                unidad_abreviatura: ('abreviatura' in (u as any) ? (u as UnidadMedida)?.abreviatura : (u as any)?.unidad_abreviatura) || '',
               es_principal: principal ? true : false,
               factor_conversion: principal?.factor_conversion || 1,
-              unidades_disponibles: unidades,
+              unidades_disponibles: unidadesProducto,
             }
           : d
       ))
@@ -729,12 +735,12 @@ export default function CotizacionesPage() {
                     placeholder="Unidad"
                     value={det.unidad_id}
                     onChange={(val) => {
-                      const u = allUnidades.find((uu) => uu.id === val)
+                      const u = det.unidades_disponibles.find((uu) => uu.id === val)
                       updateDetalle(det.key, 'unidad_id', val)
                       updateDetalle(det.key, 'unidad_nombre', u?.nombre || '')
                       updateDetalle(det.key, 'unidad_abreviatura', u?.abreviatura || '')
                     }}
-                    options={allUnidades.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})` }))}
+                    options={det.unidades_disponibles.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})` }))}
                     size="small"
                     showSearch
                     filterOption={(input, option) =>
