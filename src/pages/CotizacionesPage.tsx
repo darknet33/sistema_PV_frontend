@@ -22,7 +22,6 @@ import categoriaService from '../services/categoriaService'
 import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
-import type { UnidadMedida } from '../types/unidadMedida'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import ProductoSelectorModal from '../components/ProductoSelectorModal'
@@ -34,6 +33,14 @@ const IVA_RATE = 13
 const IT_RATE = 3
 
 const FORMA_PAGO_OPTIONS = ['Transferencia SIGEP', 'Cheque', 'Al contado']
+
+interface UnidadDisponible {
+  id: number
+  nombre: string
+  abreviatura: string
+  factor: number
+  es_principal: boolean
+}
 
 interface DetalleLine {
   key: string
@@ -48,10 +55,11 @@ interface DetalleLine {
   factor_conversion: number
   cantidad: number
   costo: number
+  costo_base: number
   utilidad_pct: number
   precio_venta: number
   stock_actual: number
-  unidades_disponibles: UnidadMedida[]
+  unidades_disponibles: UnidadDisponible[]
 }
 
 const estadoColor: Record<string, string> = {
@@ -211,7 +219,7 @@ export default function CotizacionesPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingCotizacion(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
     form.resetFields()
     form.setFieldsValue({
       fecha: dayjs(),
@@ -240,14 +248,14 @@ export default function CotizacionesPage() {
     setDetalles(
       cot.detalles?.map((d, i) => {
         const prod = productos.find((p) => p.id === d.producto_id)
-        const unidadesProducto: UnidadMedida[] = (prod?.unidades || []).map((pu) => ({
+        const unidadesDisponibles: UnidadDisponible[] = (prod?.unidades || []).map((pu) => ({
           id: pu.unidad_id,
           nombre: pu.unidad_nombre,
           abreviatura: pu.unidad_abreviatura,
-          categoria_unidad_id: null,
-          activo: true,
-          categoria_nombre: '',
+          factor: Number(pu.factor_conversion || 1),
+          es_principal: !!pu.es_principal,
         }))
+        const factor = Number(d.factor_conversion || 1)
         return {
           key: String(i + 1),
           producto_id: d.producto_id,
@@ -258,15 +266,16 @@ export default function CotizacionesPage() {
           unidad_nombre: d.unidad_nombre || '',
           unidad_abreviatura: d.unidad_abreviatura || '',
           es_principal: d.es_principal ?? true,
-          factor_conversion: d.factor_conversion ?? 1,
+          factor_conversion: factor,
           cantidad: d.cantidad,
           costo: Number(d.costo || 0),
+          costo_base: Number(d.costo || 0) * factor,
           utilidad_pct: Number(d.utilidad_pct || 0),
           precio_venta: Number(d.precio_venta || 0),
           stock_actual: Number(d.stock_actual || 0),
-          unidades_disponibles: unidadesProducto,
+          unidades_disponibles: unidadesDisponibles,
         }
-      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }]
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }]
     )
     setModalVisible(true)
   }
@@ -294,7 +303,7 @@ export default function CotizacionesPage() {
           producto_id: d.producto_id!,
           unidad_id: d.unidad_id,
           cantidad: d.cantidad,
-          costo: d.costo,
+          costo: d.costo_base,
           utilidad_pct: d.utilidad_pct,
         })),
       }
@@ -337,7 +346,7 @@ export default function CotizacionesPage() {
   }
 
   const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
   }
 
   const removeDetalleRow = (key: string) => {
@@ -351,19 +360,20 @@ export default function CotizacionesPage() {
 
   const selectProducto = (producto: Producto) => {
     if (selectedDetalleKey) {
-      const costo = Number(producto.precio || 0)
-      const utilidad_pct = costo > 0 ? (Number(producto.utilidad || 0) / costo) * 100 : 0
-      const unidadesProducto: UnidadMedida[] = (producto.unidades || []).map((pu) => ({
+      const costoBase = Number(producto.precio || 0)
+      const utilidad_pct = costoBase > 0 ? (Number(producto.utilidad || 0) / costoBase) * 100 : 0
+      const unidadesDisponibles: UnidadDisponible[] = (producto.unidades || []).map((pu) => ({
         id: pu.unidad_id,
         nombre: pu.unidad_nombre,
         abreviatura: pu.unidad_abreviatura,
-        categoria_unidad_id: null,
-        activo: true,
-        categoria_nombre: '',
+        factor: Number(pu.factor_conversion || 1),
+        es_principal: !!pu.es_principal,
       }))
       const principal = producto.unidad_principal
-      const unidadId = principal ? principal.unidad_id : (unidadesProducto.length > 0 ? unidadesProducto[0].id : null)
-      const u = principal || (unidadesProducto.length > 0 ? unidadesProducto[0] : null)
+      const unidadId = principal ? principal.unidad_id : (unidadesDisponibles.length > 0 ? unidadesDisponibles[0].id : null)
+      const u = unidadesDisponibles.find((ud) => ud.id === unidadId) || unidadesDisponibles[0] || null
+      const factor = u?.factor || 1
+      const costo = u ? (u.es_principal ? costoBase : costoBase / factor) : costoBase
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
           ? {
@@ -373,15 +383,16 @@ export default function CotizacionesPage() {
               producto_codigo: producto.codigo,
               producto_categoria: catMap.get(producto.categoria_id) || '',
               costo,
+              costo_base: costoBase,
               utilidad_pct,
               precio_venta: calcularPrecioVenta(costo, utilidad_pct),
               stock_actual: Number((producto as any).stock_actual || 0),
               unidad_id: unidadId,
-               unidad_nombre: ('nombre' in (u as any) ? (u as UnidadMedida)?.nombre : (u as any)?.unidad_nombre) || '',
-               unidad_abreviatura: ('abreviatura' in (u as any) ? (u as UnidadMedida)?.abreviatura : (u as any)?.unidad_abreviatura) || '',
-              es_principal: principal ? true : false,
-              factor_conversion: principal?.factor_conversion || 1,
-              unidades_disponibles: unidadesProducto,
+              unidad_nombre: u?.nombre || '',
+              unidad_abreviatura: u?.abreviatura || '',
+              es_principal: u?.es_principal ?? true,
+              factor_conversion: factor,
+              unidades_disponibles: unidadesDisponibles,
             }
           : d
       ))
@@ -394,7 +405,10 @@ export default function CotizacionesPage() {
     setDetalles((prev) => prev.map((d) => {
       if (d.key !== key) return d
       const updated = { ...d, [field]: value }
-      if (field === 'costo' || field === 'utilidad_pct') {
+      if (field === 'costo') {
+        updated.costo_base = Number(value || 0) * (updated.factor_conversion || 1)
+        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
+      } else if (field === 'utilidad_pct') {
         updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
       }
       return updated
@@ -736,9 +750,16 @@ export default function CotizacionesPage() {
                     value={det.unidad_id}
                     onChange={(val) => {
                       const u = det.unidades_disponibles.find((uu) => uu.id === val)
+                      if (!u) return
+                      const factor = u.factor || 1
+                      const nuevoCosto = u.es_principal ? det.costo_base : det.costo_base / factor
                       updateDetalle(det.key, 'unidad_id', val)
-                      updateDetalle(det.key, 'unidad_nombre', u?.nombre || '')
-                      updateDetalle(det.key, 'unidad_abreviatura', u?.abreviatura || '')
+                      updateDetalle(det.key, 'unidad_nombre', u.nombre || '')
+                      updateDetalle(det.key, 'unidad_abreviatura', u.abreviatura || '')
+                      updateDetalle(det.key, 'factor_conversion', factor)
+                      updateDetalle(det.key, 'es_principal', !!u.es_principal)
+                      updateDetalle(det.key, 'costo', nuevoCosto)
+                      updateDetalle(det.key, 'precio_venta', calcularPrecioVenta(nuevoCosto, det.utilidad_pct))
                     }}
                     options={det.unidades_disponibles.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})` }))}
                     size="small"
