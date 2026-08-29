@@ -18,6 +18,7 @@ import {
 import { useAuthStore, isTokenExpired } from './stores/authStore'
 import AppLayout from './components/AppLayout'
 import LandingPage from './pages/LandingPage'
+import ProductosLandingPage from './pages/landing/ProductosPage'
 import LoginPage from './pages/LoginPage'
 import SessionExpiredPage from './pages/SessionExpiredPage'
 import InicioPage from './pages/InicioPage'
@@ -164,6 +165,7 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/productos" element={<ProductosLandingPage />} />
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/dashboard" />} />
       <Route path="/session-expired" element={<SessionExpiredPage />} />
       <Route path="/dashboard" element={validSession ? <AppLayout menuItems={menuItems}><Outlet /></AppLayout> : <Navigate to="/login" />}>
