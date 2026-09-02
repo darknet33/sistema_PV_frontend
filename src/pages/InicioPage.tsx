@@ -16,6 +16,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  BarChart,
+  Bar,
+  ReferenceLine,
 } from 'recharts'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
@@ -33,6 +36,8 @@ interface DashboardData {
   }
   ventas_por_dia: { fecha: string; cantidad: number; total: number }[]
   compras_por_dia: { fecha: string; cantidad: number; total: number }[]
+  utilidad_por_dia: { fecha: string; total: number }[]
+  gastos_por_dia: { fecha: string; total: number }[]
   top_vendedores: { username: string; cantidad: number; total: number }[]
   stock_bajo: { id: number; codigo: string; descripcion: string; marca: string; stock_actual: number; stock_minimo: number }[]
 }
@@ -76,6 +81,24 @@ export default function InicioPage() {
       const entry = fechaMap.get(c.fecha) || { fecha: c.fecha, ventas: 0, compras: 0 }
       entry.compras = Number(c.total)
       fechaMap.set(c.fecha, entry)
+    }
+    return Array.from(fechaMap.values()).sort((a, b) => a.fecha.localeCompare(b.fecha))
+  }, [data])
+
+  const profitChartData = useMemo(() => {
+    if (!data) return []
+    const fechaMap = new Map<string, { fecha: string; utilidad: number; gastos: number; neta: number }>()
+    for (const u of data.utilidad_por_dia) {
+      const entry = fechaMap.get(u.fecha) || { fecha: u.fecha, utilidad: 0, gastos: 0, neta: 0 }
+      entry.utilidad = Number(u.total)
+      entry.neta = entry.utilidad - entry.gastos
+      fechaMap.set(u.fecha, entry)
+    }
+    for (const g of data.gastos_por_dia) {
+      const entry = fechaMap.get(g.fecha) || { fecha: g.fecha, utilidad: 0, gastos: 0, neta: 0 }
+      entry.gastos = Number(g.total)
+      entry.neta = entry.utilidad - entry.gastos
+      fechaMap.set(g.fecha, entry)
     }
     return Array.from(fechaMap.values()).sort((a, b) => a.fecha.localeCompare(b.fecha))
   }, [data])
@@ -244,6 +267,36 @@ export default function InicioPage() {
               activeDot={{ r: 6 }}
             />
           </LineChart>
+        </ResponsiveContainer>
+      </Card>
+
+      <Card
+        title={<span style={{ fontSize: 16, fontWeight: 600 }}>Utilidad vs Gastos (últimos 30 días)</span>}
+        className="dashboard-chart-card"
+        style={{ marginBottom: 16 }}
+        variant="borderless"
+      >
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={profitChartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="fecha" tickFormatter={formatFecha} fontSize={12} />
+            <YAxis fontSize={12} tickFormatter={(v) => `Bs.${v}`} />
+            <Tooltip
+              labelFormatter={(f) => dayjs(f).format('DD/MM/YYYY')}
+              formatter={(value) => [formatCurrency(Number(value)), '']}
+            />
+            <Legend
+              verticalAlign="top"
+              height={36}
+              formatter={(value: string) => (
+                <span style={{ color: '#333', fontWeight: 500 }}>{value}</span>
+              )}
+            />
+            <ReferenceLine y={0} stroke="#999" strokeDasharray="3 3" />
+            <Bar dataKey="utilidad" name="Utilidad" fill="#52c41a" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="gastos" name="Gastos" fill="#ff4d4f" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="neta" name="Utilidad Neta" fill="#1890ff" radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ResponsiveContainer>
       </Card>
 

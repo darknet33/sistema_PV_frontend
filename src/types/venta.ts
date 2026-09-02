@@ -23,6 +23,7 @@ export interface VentaCreate {
   num_comprobante?: string
   estado_id: number
   impuesto?: number
+  it?: number
   descuento?: number
   automatico?: boolean
   detalles: VentaDetalleCreate[]
@@ -40,6 +41,7 @@ export interface Venta {
   estado_nombre: string
   total: number
   impuesto: number
+  it: number
   descuento: number
   activo: boolean
   usuario_id: number

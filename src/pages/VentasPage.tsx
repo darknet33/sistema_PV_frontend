@@ -268,6 +268,7 @@ export default function VentasPage() {
         comprobante_id: values.comprobante_id,
         estado_id: values.estado_id,
         impuesto: values.impuesto || 0,
+        it: itPct,
         descuento: values.descuento || 0,
         num_comprobante: autoNum ? undefined : (values.num_comprobante || ''),
         automatico: autoNum,
@@ -377,11 +378,14 @@ export default function VentasPage() {
   const impuestoPct = watchedImpuesto
   const descuentoPct = watchedDescuento
 
+  const IT_VENTA_DIRECTA = 3
+  const itPct = Number(impuestoPct || 0) > 0 ? IT_VENTA_DIRECTA : 0
+
   const totalCalculado = useMemo(() => {
     const imp = Number(impuestoPct || 0)
     const desc = Number(descuentoPct || 0)
-    return subtotalCalculado + (subtotalCalculado * imp / 100) - (subtotalCalculado * desc / 100)
-  }, [subtotalCalculado, impuestoPct, descuentoPct])
+    return subtotalCalculado + (subtotalCalculado * imp / 100) + (subtotalCalculado * itPct / 100) - (subtotalCalculado * desc / 100)
+  }, [subtotalCalculado, impuestoPct, descuentoPct, itPct])
 
   const handleDownloadReport = async () => {
     try {
@@ -559,7 +563,7 @@ export default function VentasPage() {
     {
       title: 'Acciones', key: 'acciones', width: 300, render: (_, record) => (
         <div className="flex gap-1">
-          <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => openEditModal(record)} title="Editar" />
+          <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} disabled={record.estado_nombre === 'Anulado'} onClick={() => openEditModal(record)} title="Editar" />
           <Button icon={<EyeOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => handlePrintPdf(record.id)} title="Vista previa del PDF">
             Vista previa
           </Button>
@@ -852,6 +856,11 @@ export default function VentasPage() {
             {Number(impuestoPct || 0) > 0 && (
               <div className="font-normal text-sm text-blue-500">
                 IVA ({impuestoPct}%): Bs. {(subtotalCalculado * Number(impuestoPct || 0) / 100).toFixed(2)}
+              </div>
+            )}
+            {itPct > 0 && (
+              <div className="font-normal text-sm text-orange-500">
+                IT ({itPct}%): Bs. {(subtotalCalculado * itPct / 100).toFixed(2)}
               </div>
             )}
             {Number(descuentoPct || 0) > 0 && (
