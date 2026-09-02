@@ -2,7 +2,7 @@ import axios from 'axios'
 import { isTokenExpired } from '../stores/authStore'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${import.meta.env.VITE_API_URL || ''}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,7 +13,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     if (isTokenExpired(token)) {
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      window.location.href = '/session-expired'
       return Promise.reject(new Error('Token expirado'))
     }
     config.headers.Authorization = `Bearer ${token}`
@@ -26,7 +26,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      window.location.href = '/session-expired'
     }
     return Promise.reject(error)
   }

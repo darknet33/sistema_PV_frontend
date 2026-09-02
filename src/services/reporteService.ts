@@ -1,5 +1,5 @@
 import api from './api'
-import type { ResumenVenta, ResumenCompra, TopProducto } from '../types/reporte'
+import type { ResumenVenta, ResumenCompra, TopProducto, KardexResponse } from '../types/reporte'
 
 export const getResumenVentas = async (
   fecha_inicio: string,
@@ -28,6 +28,17 @@ export const getTopProductos = async (
 ): Promise<TopProducto[]> => {
   const response = await api.get('/reportes/resumen/top-productos', {
     params: { fecha_inicio, fecha_fin, limite },
+  })
+  return response.data
+}
+
+export const getKardexMovimientos = async (
+  productoId: number,
+  fecha_inicio?: string,
+  fecha_fin?: string,
+): Promise<KardexResponse> => {
+  const response = await api.get<KardexResponse>(`/reportes/kardex/${productoId}/movimientos`, {
+    params: fecha_inicio && fecha_fin ? { fecha_inicio, fecha_fin } : {},
   })
   return response.data
 }

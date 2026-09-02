@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, message, Tag, Input, Switch, Grid, Checkbox, Descriptions, Space } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, message, Tag, Input, Switch, Grid, Checkbox, Card, Space, Select } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, EyeOutlined,
+  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined,
   CheckOutlined, ShoppingCartOutlined, ProfileOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -10,13 +10,15 @@ import dayjs from 'dayjs'
 import type { Cotizacion, CotizacionCreate } from '../types/cotizacion'
 import {
   getCotizaciones, createCotizacion, updateCotizacion, deleteCotizacion, confirmarCotizacion,
-  convertirCotizacionEnVenta, downloadCotizacionPdf, previewCotizacionPdf,
+  convertirCotizacionEnVenta, fetchCotizacionPdfBlob,
 } from '../services/cotizacionService'
+import usePdfPreview from '../hooks/usePdfPreview'
 import { getClientes, createCliente, updateCliente, deleteCliente } from '../services/clienteService'
 import comprobanteService from '../services/comprobanteService'
 import estadoService from '../services/estadoService'
 import { getProductos } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
+
 import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
@@ -28,6 +30,17 @@ import SubCrudSelect from '../components/SubCrudSelect'
 const { useBreakpoint } = Grid
 
 const IVA_RATE = 13
+const IT_RATE = 3
+
+const FORMA_PAGO_OPTIONS = ['Transferencia SIGEP', 'Cheque', 'Al contado']
+
+interface UnidadDisponible {
+  id: number
+  nombre: string
+  abreviatura: string
+  factor: number
+  es_principal: boolean
+}
 
 interface DetalleLine {
   key: string
@@ -35,10 +48,18 @@ interface DetalleLine {
   producto_nombre: string
   producto_codigo: string
   producto_categoria: string
+  unidad_id: number | null
+  unidad_nombre: string
+  unidad_abreviatura: string
+  es_principal: boolean
+  factor_conversion: number
   cantidad: number
   costo: number
+  costo_base: number
   utilidad_pct: number
   precio_venta: number
+  stock_actual: number
+  unidades_disponibles: UnidadDisponible[]
 }
 
 const estadoColor: Record<string, string> = {
@@ -56,6 +77,7 @@ function calcularPrecioVenta(costo: number, pct: number): number {
 export default function CotizacionesPage() {
   const screens = useBreakpoint()
   const isMobile = !screens.md
+  const { openPdf, previewModal } = usePdfPreview()
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
@@ -65,8 +87,9 @@ export default function CotizacionesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [comprobantes, setComprobantes] = useState<{ id: number; nombre: string; numero: number }[]>([])
   const [estados, setEstados] = useState<{ id: number; nombre: string }[]>([])
-  const [, setProductos] = useState<Producto[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
 
@@ -196,9 +219,15 @@ export default function CotizacionesPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingCotizacion(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0 }])
+    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
     form.resetFields()
-    form.setFieldsValue({ con_factura: false, incluir_imagenes: false, validez_dias: 15 })
+    form.setFieldsValue({
+      fecha: dayjs(),
+      con_factura: false,
+      incluir_imagenes: false,
+      validez_dias: 15,
+      descuento: 0,
+    })
     setModalVisible(true)
   }
 
@@ -211,21 +240,42 @@ export default function CotizacionesPage() {
       con_factura: cot.con_factura,
       incluir_imagenes: cot.incluir_imagenes,
       modalidad_pago: cot.modalidad_pago || '',
+      forma_pago: cot.forma_pago || '',
       validez_dias: cot.validez_dias,
       terminos_condiciones: cot.terminos_condiciones || '',
+      descuento: Number(cot.descuento || 0),
     })
     setDetalles(
-      cot.detalles?.map((d, i) => ({
-        key: String(i + 1),
-        producto_id: d.producto_id,
-        producto_nombre: d.producto_nombre,
-        producto_codigo: d.producto_codigo,
-        producto_categoria: d.producto_categoria || '',
-        cantidad: d.cantidad,
-        costo: Number(d.costo || 0),
-        utilidad_pct: Number(d.utilidad_pct || 0),
-        precio_venta: Number(d.precio_venta || 0),
-      })) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0 }]
+      cot.detalles?.map((d, i) => {
+        const prod = productos.find((p) => p.id === d.producto_id)
+        const unidadesDisponibles: UnidadDisponible[] = (prod?.unidades || []).map((pu) => ({
+          id: pu.unidad_id,
+          nombre: pu.unidad_nombre,
+          abreviatura: pu.unidad_abreviatura,
+          factor: Number(pu.factor_conversion || 1),
+          es_principal: !!pu.es_principal,
+        }))
+        const factor = Number(d.factor_conversion || 1)
+        return {
+          key: String(i + 1),
+          producto_id: d.producto_id,
+          producto_nombre: d.producto_nombre,
+          producto_codigo: d.producto_codigo,
+          producto_categoria: d.producto_categoria || '',
+          unidad_id: d.unidad_id || null,
+          unidad_nombre: d.unidad_nombre || '',
+          unidad_abreviatura: d.unidad_abreviatura || '',
+          es_principal: d.es_principal ?? true,
+          factor_conversion: factor,
+          cantidad: d.cantidad,
+          costo: Number(d.costo || 0),
+          costo_base: Number(d.costo || 0) * factor,
+          utilidad_pct: Number(d.utilidad_pct || 0),
+          precio_venta: Number(d.precio_venta || 0),
+          stock_actual: Number(d.stock_actual || 0),
+          unidades_disponibles: unidadesDisponibles,
+        }
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }]
     )
     setModalVisible(true)
   }
@@ -245,12 +295,15 @@ export default function CotizacionesPage() {
         con_factura: values.con_factura || false,
         incluir_imagenes: values.incluir_imagenes || false,
         modalidad_pago: values.modalidad_pago || '',
+        forma_pago: values.forma_pago || '',
         validez_dias: values.validez_dias || 15,
         terminos_condiciones: values.terminos_condiciones || '',
+        descuento: values.descuento || 0,
         detalles: validDetalles.map((d) => ({
           producto_id: d.producto_id!,
+          unidad_id: d.unidad_id,
           cantidad: d.cantidad,
-          costo: d.costo,
+          costo: d.costo_base,
           utilidad_pct: d.utilidad_pct,
         })),
       }
@@ -293,7 +346,7 @@ export default function CotizacionesPage() {
   }
 
   const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0, precio_venta: 0 }])
+    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
   }
 
   const removeDetalleRow = (key: string) => {
@@ -307,8 +360,20 @@ export default function CotizacionesPage() {
 
   const selectProducto = (producto: Producto) => {
     if (selectedDetalleKey) {
-      const costo = Number(producto.precio || 0)
-      const utilidad_pct = costo > 0 ? (Number(producto.utilidad || 0) / costo) * 100 : 0
+      const costoBase = Number(producto.precio || 0)
+      const utilidad_pct = costoBase > 0 ? (Number(producto.utilidad || 0) / costoBase) * 100 : 0
+      const unidadesDisponibles: UnidadDisponible[] = (producto.unidades || []).map((pu) => ({
+        id: pu.unidad_id,
+        nombre: pu.unidad_nombre,
+        abreviatura: pu.unidad_abreviatura,
+        factor: Number(pu.factor_conversion || 1),
+        es_principal: !!pu.es_principal,
+      }))
+      const principal = producto.unidad_principal
+      const unidadId = principal ? principal.unidad_id : (unidadesDisponibles.length > 0 ? unidadesDisponibles[0].id : null)
+      const u = unidadesDisponibles.find((ud) => ud.id === unidadId) || unidadesDisponibles[0] || null
+      const factor = u?.factor || 1
+      const costo = u ? (u.es_principal ? costoBase : costoBase / factor) : costoBase
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
           ? {
@@ -318,8 +383,16 @@ export default function CotizacionesPage() {
               producto_codigo: producto.codigo,
               producto_categoria: catMap.get(producto.categoria_id) || '',
               costo,
+              costo_base: costoBase,
               utilidad_pct,
               precio_venta: calcularPrecioVenta(costo, utilidad_pct),
+              stock_actual: Number((producto as any).stock_actual || 0),
+              unidad_id: unidadId,
+              unidad_nombre: u?.nombre || '',
+              unidad_abreviatura: u?.abreviatura || '',
+              es_principal: u?.es_principal ?? true,
+              factor_conversion: factor,
+              unidades_disponibles: unidadesDisponibles,
             }
           : d
       ))
@@ -332,7 +405,10 @@ export default function CotizacionesPage() {
     setDetalles((prev) => prev.map((d) => {
       if (d.key !== key) return d
       const updated = { ...d, [field]: value }
-      if (field === 'costo' || field === 'utilidad_pct') {
+      if (field === 'costo') {
+        updated.costo_base = Number(value || 0) * (updated.factor_conversion || 1)
+        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
+      } else if (field === 'utilidad_pct') {
         updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
       }
       return updated
@@ -342,7 +418,9 @@ export default function CotizacionesPage() {
   const watchedFecha = Form.useWatch('fecha', form)
   const watchedValidez = Form.useWatch('validez_dias', form)
   const watchedConFactura = Form.useWatch('con_factura', form)
+  const watchedDescuento = Form.useWatch('descuento', form)
   const conFactura = !!watchedConFactura
+  const descuentoPct = Number(watchedDescuento || 0)
 
   const fechaVencimiento = useMemo(() => {
     if (!watchedFecha) return null
@@ -357,25 +435,20 @@ export default function CotizacionesPage() {
     return conFactura ? Math.round(subtotalCalculado * IVA_RATE) / 100 : 0
   }, [subtotalCalculado, conFactura])
 
+  const itCalculado = useMemo(() => {
+    return conFactura ? Math.round(subtotalCalculado * IT_RATE) / 100 : 0
+  }, [subtotalCalculado, conFactura])
+
+  const descuentoCalculado = useMemo(() => {
+    return Math.round(subtotalCalculado * descuentoPct) / 100
+  }, [subtotalCalculado, descuentoPct])
+
   const totalCalculado = useMemo(() => {
-    return Math.round((subtotalCalculado + ivaCalculado) * 100) / 100
-  }, [subtotalCalculado, ivaCalculado])
+    return Math.round((subtotalCalculado + ivaCalculado + itCalculado - descuentoCalculado) * 100) / 100
+  }, [subtotalCalculado, ivaCalculado, itCalculado, descuentoCalculado])
 
-  const handleDownloadPdf = async (id: number) => {
-    try {
-      await downloadCotizacionPdf(id)
-      message.success('PDF descargado')
-    } catch {
-      message.error('Error al generar PDF')
-    }
-  }
-
-  const handlePreviewPdf = async (id: number) => {
-    try {
-      await previewCotizacionPdf(id)
-    } catch {
-      message.error('Error al generar PDF')
-    }
+  const handlePdfPreview = async (id: number) => {
+    await openPdf(() => fetchCotizacionPdfBlob(id), `Cotización #${id}`, `cotizacion_${id}.pdf`)
   }
 
   const openConvertModal = (cot: Cotizacion) => {
@@ -417,8 +490,15 @@ export default function CotizacionesPage() {
   const detColumns: ColumnsType<any> = [
     { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 90 },
     { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
-    { title: 'Cant.', dataIndex: 'cantidad', key: 'cantidad', width: 60 },
-    { title: 'Costo', dataIndex: 'costo', key: 'costo', width: 90, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
+    { title: 'Unidad', key: 'unidad', width: 100, render: (_: any, r: any) => r.unidad_nombre ? `${r.unidad_nombre} (${r.unidad_abreviatura || '-'})` : '-' },
+    { title: 'Cant.', dataIndex: 'cantidad', key: 'cantidad', width: 60, render: (_: any, r: any) => (
+      <div>
+        <div>{r.cantidad}</div>
+        {r.cantidad > r.stock_actual && (
+          <div className="text-xs text-red-500 font-medium">Stock: {r.stock_actual}</div>
+        )}
+      </div>
+    )},
     { title: 'Util. %', dataIndex: 'utilidad_pct', key: 'utilidad_pct', width: 70, render: (val: any) => `${Number(val || 0).toFixed(2)}%` },
     { title: 'P. Venta', dataIndex: 'precio_venta', key: 'precio_venta', width: 90, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio_venta || 0)).toFixed(2)}` },
@@ -431,6 +511,8 @@ export default function CotizacionesPage() {
     { title: 'Estado', dataIndex: 'estado', key: 'estado', render: (val: string) => <Tag color={estadoColor[val]}>{val}</Tag> },
     { title: 'Subtotal', dataIndex: 'subtotal', key: 'subtotal', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'IVA', dataIndex: 'iva', key: 'iva', render: (val: any) => (Number(val || 0) > 0 ? `Bs. ${Number(val).toFixed(2)}` : '-') },
+    { title: 'IT', dataIndex: 'it', key: 'it', render: (val: any) => (Number(val || 0) > 0 ? `Bs. ${Number(val).toFixed(2)}` : '-') },
+    { title: 'Desc.', dataIndex: 'descuento', key: 'descuento', render: (val: any) => (Number(val || 0) > 0 ? `${Number(val)}%` : '-') },
     { title: 'Total', dataIndex: 'total', key: 'total', render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Vence', dataIndex: 'fecha_vencimiento', key: 'fecha_vencimiento', render: (val: string) => dayjs(val).format('DD/MM/YYYY') },
     {
@@ -445,8 +527,7 @@ export default function CotizacionesPage() {
         return (
           <div className="flex gap-1 flex-wrap">
             <Button size={isMobile ? 'middle' : 'small'} icon={<ProfileOutlined />} title="Ver detalle" onClick={() => { setDetailCotizacion(record); setDetailVisible(true) }} />
-            <Button size={isMobile ? 'middle' : 'small'} icon={<EyeOutlined />} title="Vista previa" onClick={() => handlePreviewPdf(record.id)} />
-            <Button size={isMobile ? 'middle' : 'small'} icon={<DownloadOutlined />} title="Descargar PDF" onClick={() => handleDownloadPdf(record.id)} />
+            <Button size={isMobile ? 'middle' : 'small'} icon={<EyeOutlined />} title="Vista previa" onClick={() => handlePdfPreview(record.id)} />
             {editable && (
               <>
                 <Button size={isMobile ? 'middle' : 'small'} icon={<EditOutlined />} title="Editar" onClick={() => openEditModal(record)} />
@@ -473,21 +554,6 @@ export default function CotizacionesPage() {
 
   const fabVisible = isMobile && !modalVisible && !detailVisible && !convertVisible
 
-  const clienteCrudModalProps = {
-    title: 'Clientes',
-    onSelect: (rec: any) => form.setFieldValue('cliente_id', rec.id),
-    fetchAll: getClientes as any,
-    create: createCliente as any,
-    update: updateCliente as any,
-    remove: deleteCliente as any,
-    fields: [
-      { name: 'nombre', label: 'Nombre' },
-      { name: 'nit', label: 'NIT' },
-      { name: 'celular', label: 'Celular' },
-      { name: 'direccion', label: 'Dirección' },
-    ],
-  }
-
   const comprobanteCrudModalProps = {
     title: 'Comprobantes',
     onSelect: (rec: any) => convertForm.setFieldValue('comprobante_id', rec.id),
@@ -499,6 +565,7 @@ export default function CotizacionesPage() {
       { name: 'nombre', label: 'Nombre' },
       { name: 'numero', label: 'Número', type: 'number' as const },
     ],
+    onDataChange: (list: any[]) => setComprobantes(list),
   }
 
   const estadoCrudModalProps = {
@@ -509,6 +576,7 @@ export default function CotizacionesPage() {
     update: estadoService.update as any,
     remove: estadoService.delete as any,
     fields: [{ name: 'nombre', label: 'Nombre' }],
+    onDataChange: (list: any[]) => setEstados(list),
   }
 
   return (
@@ -602,7 +670,21 @@ export default function CotizacionesPage() {
               <SubCrudSelect
                 placeholder="Seleccione un cliente"
                 options={clienteOptions}
-                modalProps={clienteCrudModalProps}
+                disabled={editingCotizacion !== null}
+                modalProps={{
+                  title: 'Clientes',
+                  fetchAll: getClientes,
+                  create: createCliente,
+                  update: updateCliente,
+                  remove: deleteCliente,
+                  fields: [
+                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nit', label: 'NIT' },
+                    { name: 'celular', label: 'Celular' },
+                    { name: 'direccion', label: 'Dirección' },
+                  ],
+                  onDataChange: (list) => setClientes(list),
+                }}
               />
             </Form.Item>
             <Form.Item name="validez_dias" label="Validez (días)" rules={[{ required: true }]} className="flex-1 min-w-[120px] !mb-3" initialValue={15}>
@@ -627,13 +709,25 @@ export default function CotizacionesPage() {
           <Form.Item name="modalidad_pago" label="Modalidad de pago">
             <Input placeholder="Ej. 50% adelanto, 50% contra entrega" />
           </Form.Item>
+          <div className="flex flex-wrap gap-3">
+            <Form.Item name="forma_pago" label="Forma de pago" className="flex-1 min-w-[200px]">
+              <Select
+                allowClear
+                placeholder="Seleccione la forma de pago"
+                options={FORMA_PAGO_OPTIONS.map((f) => ({ value: f, label: f }))}
+              />
+            </Form.Item>
+            <Form.Item name="descuento" label="Descuento %" className="flex-1 min-w-[140px]">
+              <InputNumber min={0} max={100} step={0.01} className="w-full" />
+            </Form.Item>
+          </div>
           <Form.Item name="terminos_condiciones" label="Términos y condiciones">
             <Input.TextArea rows={3} placeholder="Términos y condiciones de la oferta" />
           </Form.Item>
 
           <div className="flex justify-between items-center mb-2">
             <strong>Detalles de la cotización</strong>
-            {conFactura && <Tag color="orange">IVA {IVA_RATE}%</Tag>}
+            {conFactura && <Tag color="orange">IVA {IVA_RATE}% + IT {IT_RATE}%</Tag>}
           </div>
 
           {detalles.map((det, index) => (
@@ -649,10 +743,38 @@ export default function CotizacionesPage() {
                   />
                 </Form.Item>
               </div>
+              <div className="w-[120px] shrink-0">
+                <Form.Item label={index === 0 ? 'Unidad' : ''} className="!mb-0">
+                  <Select
+                    placeholder="Unidad"
+                    value={det.unidad_id}
+                    onChange={(val) => {
+                      const u = det.unidades_disponibles.find((uu) => uu.id === val)
+                      if (!u) return
+                      const factor = u.factor || 1
+                      const nuevoCosto = u.es_principal ? det.costo_base : det.costo_base / factor
+                      updateDetalle(det.key, 'unidad_id', val)
+                      updateDetalle(det.key, 'unidad_nombre', u.nombre || '')
+                      updateDetalle(det.key, 'unidad_abreviatura', u.abreviatura || '')
+                      updateDetalle(det.key, 'factor_conversion', factor)
+                      updateDetalle(det.key, 'es_principal', !!u.es_principal)
+                      updateDetalle(det.key, 'costo', nuevoCosto)
+                      updateDetalle(det.key, 'precio_venta', calcularPrecioVenta(nuevoCosto, det.utilidad_pct))
+                    }}
+                    options={det.unidades_disponibles.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})` }))}
+                    size="small"
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                    }
+                  />
+                </Form.Item>
+              </div>
               <div className="w-[65px] shrink-0">
                 <Form.Item label={index === 0 ? 'Cant.' : ''} className="!mb-0">
                   <InputNumber
-                    min={1}
+                    min={0.01}
+                    step={0.01}
                     className="w-full"
                     value={det.cantidad}
                     onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
@@ -719,8 +841,18 @@ export default function CotizacionesPage() {
           <div className="text-right font-bold">
             <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
             {conFactura && (
-              <div className="font-normal text-sm text-orange-500">
-                IVA ({IVA_RATE}%): Bs. {ivaCalculado.toFixed(2)}
+              <>
+                <div className="font-normal text-sm text-orange-500">
+                  IVA ({IVA_RATE}%): Bs. {ivaCalculado.toFixed(2)}
+                </div>
+                <div className="font-normal text-sm text-orange-500">
+                  IT ({IT_RATE}%): Bs. {itCalculado.toFixed(2)}
+                </div>
+              </>
+            )}
+            {descuentoPct > 0 && (
+              <div className="font-normal text-sm text-green-600">
+                Descuento ({descuentoPct}%): -Bs. {descuentoCalculado.toFixed(2)}
               </div>
             )}
             <div className="text-lg mt-1">
@@ -746,29 +878,69 @@ export default function CotizacionesPage() {
       >
         {detailCotizacion && (
           <div>
-            <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
-              <Descriptions.Item label="N°">{detailCotizacion.numero}</Descriptions.Item>
-              <Descriptions.Item label="Estado">
-                <Tag color={estadoColor[detailCotizacion.estado]}>{detailCotizacion.estado}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Fecha">{dayjs(detailCotizacion.fecha).format('DD/MM/YYYY')}</Descriptions.Item>
-              <Descriptions.Item label="Vencimiento">{dayjs(detailCotizacion.fecha_vencimiento).format('DD/MM/YYYY')}</Descriptions.Item>
-              <Descriptions.Item label="Cliente" span={2}>{detailCotizacion.cliente_razon_social}</Descriptions.Item>
-              <Descriptions.Item label="NIT">{detailCotizacion.cliente_nit}</Descriptions.Item>
-              <Descriptions.Item label="Celular">{detailCotizacion.cliente_celular}</Descriptions.Item>
-              <Descriptions.Item label="Dirección" span={2}>{detailCotizacion.cliente_direccion}</Descriptions.Item>
-              <Descriptions.Item label="Con factura">{detailCotizacion.con_factura ? 'Sí' : 'No'}</Descriptions.Item>
-              <Descriptions.Item label="Incluir imágenes">{detailCotizacion.incluir_imagenes ? 'Sí' : 'No'}</Descriptions.Item>
-              <Descriptions.Item label="Modalidad de pago" span={2}>{detailCotizacion.modalidad_pago || '-'}</Descriptions.Item>
-              {detailCotizacion.venta_id && (
-                <Descriptions.Item label="Venta generada" span={2}>
-                  <Tag color="green">Venta N° {detailCotizacion.venta_id}</Tag>
-                </Descriptions.Item>
-              )}
-            </Descriptions>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-100">
+              <div>
+                <div className="text-lg font-bold">Cotización N° {detailCotizacion.numero}</div>
+                <div className="text-sm text-gray-500">
+                  {dayjs(detailCotizacion.fecha).format('DD/MM/YYYY')} · Vence el {dayjs(detailCotizacion.fecha_vencimiento).format('DD/MM/YYYY')}
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <Tag color={estadoColor[detailCotizacion.estado]} className="!m-0 !text-xs !px-2 !py-0.5">
+                  {detailCotizacion.estado}
+                </Tag>
+                {detailCotizacion.venta_id && (
+                  <Tag color="green" className="!m-0 !text-xs !px-2 !py-0.5">
+                    Venta N° {detailCotizacion.venta_id}
+                  </Tag>
+                )}
+              </div>
+            </div>
 
+            <Card size="small" title="Cliente" className="!mb-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Cliente</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_razon_social}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">NIT</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_nit || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Celular</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_celular || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Dirección</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.cliente_direccion || '-'}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card size="small" title="Condiciones de la oferta" className="!mb-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Con factura</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.con_factura ? 'Sí' : 'No'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Incluir imágenes</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.incluir_imagenes ? 'Sí' : 'No'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Modalidad de pago</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.modalidad_pago || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs uppercase tracking-wide">Forma de pago</div>
+                  <div className="font-medium mt-0.5">{detailCotizacion.forma_pago || '-'}</div>
+                </div>
+              </div>
+            </Card>
+
+            <div className="mb-2 font-medium">Productos</div>
             <Table
-              className="mt-4"
               columns={detColumns}
               dataSource={detailCotizacion.detalles?.map((d) => ({ ...d, key: d.id }))}
               pagination={false}
@@ -777,25 +949,40 @@ export default function CotizacionesPage() {
               scroll={{ x: 'max-content' }}
             />
 
-            <div className="text-right mt-3 font-bold">
-              <div>Subtotal: Bs. {Number(detailCotizacion.subtotal || 0).toFixed(2)}</div>
-              {Number(detailCotizacion.iva || 0) > 0 && (
-                <div className="font-normal text-sm text-orange-500">IVA (13%): Bs. {Number(detailCotizacion.iva).toFixed(2)}</div>
-              )}
-              <div className="text-lg">Total: Bs. {Number(detailCotizacion.total || 0).toFixed(2)}</div>
-            </div>
+            <Card size="small" className="mt-3">
+              <div className="text-right font-bold">
+                <div className="font-normal text-sm text-gray-500">
+                  Subtotal: Bs. {Number(detailCotizacion.subtotal || 0).toFixed(2)}
+                </div>
+                {Number(detailCotizacion.iva || 0) > 0 && (
+                  <div className="font-normal text-sm text-orange-500">
+                    IVA (13%): Bs. {Number(detailCotizacion.iva).toFixed(2)}
+                  </div>
+                )}
+                {Number(detailCotizacion.it || 0) > 0 && (
+                  <div className="font-normal text-sm text-orange-500">
+                    IT (3%): Bs. {Number(detailCotizacion.it).toFixed(2)}
+                  </div>
+                )}
+                {Number(detailCotizacion.descuento || 0) > 0 && (
+                  <div className="font-normal text-sm text-green-600">
+                    Descuento ({detailCotizacion.descuento}%): -Bs. {(Number(detailCotizacion.subtotal || 0) * Number(detailCotizacion.descuento) / 100).toFixed(2)}
+                  </div>
+                )}
+                <div className="text-lg mt-1">Total: Bs. {Number(detailCotizacion.total || 0).toFixed(2)}</div>
+              </div>
+            </Card>
 
             {detailCotizacion.terminos_condiciones && (
               <div className="mt-3 p-3 bg-gray-50 rounded text-sm whitespace-pre-line">
                 <strong>Términos y condiciones</strong>
-                <div>{detailCotizacion.terminos_condiciones}</div>
+                <div className="mt-1">{detailCotizacion.terminos_condiciones}</div>
               </div>
             )}
 
             <div className="mt-3 text-right">
               <Space>
-                <Button icon={<EyeOutlined />} onClick={() => handlePreviewPdf(detailCotizacion.id)}>Vista previa</Button>
-                <Button icon={<DownloadOutlined />} type="primary" onClick={() => handleDownloadPdf(detailCotizacion.id)}>Descargar PDF</Button>
+                <Button icon={<EyeOutlined />} onClick={() => handlePdfPreview(detailCotizacion.id)}>Vista previa</Button>
               </Space>
             </div>
           </div>
@@ -841,10 +1028,16 @@ export default function CotizacionesPage() {
         </Form>
         {convertCotizacion?.con_factura && (
           <div className="text-sm text-orange-500">
-            La venta incluirá IVA (13%) porque la cotización es con factura.
+            La venta incluirá IVA (13%) + IT (3%) porque la cotización es con factura.
+          </div>
+        )}
+        {convertCotizacion && Number(convertCotizacion.descuento || 0) > 0 && (
+          <div className="text-sm text-green-600">
+            El descuento de {convertCotizacion.descuento}% se trasladará a la venta.
           </div>
         )}
       </Modal>
+      {previewModal}
     </div>
   )
 }

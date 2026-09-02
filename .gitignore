@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 
 *.vercel
+
+# Build artifacts
+vite.config.d.ts
+vite.config.js
+tsconfig.node.tsbuildinfo
+*.xlsx

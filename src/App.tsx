@@ -13,13 +13,20 @@ import {
   AppstoreOutlined,
   UnorderedListOutlined,
   DollarOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons'
 import { useAuthStore, isTokenExpired } from './stores/authStore'
 import AppLayout from './components/AppLayout'
+import LandingPage from './pages/LandingPage'
+import ProductosLandingPage from './pages/landing/ProductosPage'
 import LoginPage from './pages/LoginPage'
+import SessionExpiredPage from './pages/SessionExpiredPage'
 import InicioPage from './pages/InicioPage'
 import ProductosPage from './pages/ProductosPage'
 import CategoriasPage from './pages/productos/CategoriasPage'
+import KardexPage from './pages/productos/KardexPage'
+import CategoriasUnidadPage from './pages/productos/CategoriasUnidadPage'
+import UnidadesPage from './pages/productos/UnidadesPage'
 import ComprasPage from './pages/ComprasPage'
 import ProveedoresPage from './pages/ProveedoresPage'
 import VentasPage from './pages/VentasPage'
@@ -34,6 +41,7 @@ import RolesPage from './pages/configuracion/RolesPage'
 import ModulosPage from './pages/configuracion/ModulosPage'
 import ComprobantesPage from './pages/configuracion/ComprobantesPage'
 import EstadosPage from './pages/configuracion/EstadosPage'
+import PerfilPage from './pages/PerfilPage'
 
 type MenuItem = Required<MenuProps>['items'][number]
 
@@ -47,21 +55,24 @@ function getItem(
 }
 
 const MODULE_ROUTE_MAP: Record<string, string> = {
-  Dashboard: '/',
-  Productos: '/productos/lista',
-  Categorias: '/productos/categorias',
-  Compras: '/entradas/compras',
-  Proveedores: '/entradas/proveedores',
-  Ventas: '/salidas/ventas',
-  Cotizaciones: '/cotizaciones',
-  Clientes: '/salidas/clientes',
-  Reportes: '/reportes',
-  Usuarios: '/configuracion/usuarios',
-  Roles: '/configuracion/roles',
-  Modulos: '/configuracion/modulos',
-  Comprobantes: '/configuracion/comprobantes',
-  Estados: '/configuracion/estados',
-  Empresa: '/configuracion/empresa',
+  Dashboard: '/dashboard',
+  Productos: '/dashboard/productos/lista',
+  Categorias: '/dashboard/productos/categorias',
+  'Unidades de Medida': '/dashboard/productos/unidades',
+  'Categorías de Unidad': '/dashboard/productos/categorias-unidad',
+  Compras: '/dashboard/entradas/compras',
+  Proveedores: '/dashboard/entradas/proveedores',
+  Ventas: '/dashboard/salidas/ventas',
+  Cotizaciones: '/dashboard/cotizaciones',
+  Clientes: '/dashboard/salidas/clientes',
+  Gastos: '/dashboard/gastos',
+  Reportes: '/dashboard/reportes',
+  Usuarios: '/dashboard/configuracion/usuarios',
+  Roles: '/dashboard/configuracion/roles',
+  Modulos: '/dashboard/configuracion/modulos',
+  Comprobantes: '/dashboard/configuracion/comprobantes',
+  Estados: '/dashboard/configuracion/estados',
+  Empresa: '/dashboard/configuracion/empresa',
 }
 
 function App() {
@@ -90,46 +101,51 @@ function App() {
     const items: MenuItem[] = []
 
     if (hasModule('Dashboard')) {
-      items.push(getItem('Inicio', '/', <DashboardOutlined />))
+      items.push(getItem('Inicio', '/dashboard', <DashboardOutlined />))
     }
 
-    if (hasAny('Productos', 'Categorias')) {
+    if (hasModule('Productos')) {
       const children: MenuItem[] = []
-      if (hasModule('Productos')) children.push(getItem('Lista', '/productos/lista', <UnorderedListOutlined />))
-      if (hasModule('Categorias')) children.push(getItem('Categorías', '/productos/categorias', <AppstoreOutlined />))
+      children.push(getItem('Lista', '/dashboard/productos/lista', <UnorderedListOutlined />))
+      if (hasModule('Categorias')) children.push(getItem('Categorías', '/dashboard/productos/categorias', <AppstoreOutlined />))
+      if (hasModule('Unidades de Medida')) children.push(getItem('Unidades de Medida', '/dashboard/productos/unidades', <AppstoreOutlined />))
+      if (hasModule('Categorías de Unidad')) children.push(getItem('Categorías de Unidad', '/dashboard/productos/categorias-unidad', <AppstoreOutlined />))
+      children.push(getItem('Kardex', '/dashboard/productos/kardex', <HistoryOutlined />))
       items.push(getItem('Productos', 'productos-group', <ShoppingCartOutlined />, children))
     }
 
     if (hasAny('Compras', 'Proveedores')) {
       const children: MenuItem[] = []
-      if (hasModule('Compras')) children.push(getItem('Compras', '/entradas/compras', <ShoppingOutlined />))
-      if (hasModule('Proveedores')) children.push(getItem('Proveedores', '/entradas/proveedores', <TeamOutlined />))
+      if (hasModule('Compras')) children.push(getItem('Compras', '/dashboard/entradas/compras', <ShoppingOutlined />))
+      if (hasModule('Proveedores')) children.push(getItem('Proveedores', '/dashboard/entradas/proveedores', <TeamOutlined />))
       items.push(getItem('Entradas', 'entradas-group', <ShoppingOutlined />, children))
     }
 
     if (hasAny('Ventas', 'Clientes')) {
       const children: MenuItem[] = []
-      if (hasModule('Ventas')) children.push(getItem('Ventas', '/salidas/ventas', <ShopOutlined />))
-      if (hasModule('Cotizaciones')) children.push(getItem('Cotizaciones', '/cotizaciones', <FileTextOutlined />))
-      if (hasModule('Clientes')) children.push(getItem('Clientes', '/salidas/clientes', <TeamOutlined />))
+      if (hasModule('Ventas')) children.push(getItem('Ventas', '/dashboard/salidas/ventas', <ShopOutlined />))
+      if (hasModule('Cotizaciones')) children.push(getItem('Cotizaciones', '/dashboard/cotizaciones', <FileTextOutlined />))
+      if (hasModule('Clientes')) children.push(getItem('Clientes', '/dashboard/salidas/clientes', <TeamOutlined />))
       items.push(getItem('Salidas', 'salidas-group', <ShopOutlined />, children))
     }
 
-    items.push(getItem('Gastos', '/gastos', <DollarOutlined />))
+    if (hasModule('Gastos')) {
+      items.push(getItem('Gastos', '/dashboard/gastos', <DollarOutlined />))
+    }
 
     if (hasModule('Reportes')) {
-      items.push(getItem('Reportes', '/reportes', <FileTextOutlined />))
+      items.push(getItem('Reportes', '/dashboard/reportes', <FileTextOutlined />))
     }
 
     const hasConfigModules = ['Usuarios', 'Roles', 'Modulos', 'Comprobantes', 'Estados', 'Empresa'].some((m) => hasModule(m))
     if (hasConfigModules) {
       const children: MenuItem[] = []
-      if (hasModule('Empresa')) children.push(getItem('Empresa', '/configuracion/empresa', <ShopOutlined />))
-      if (hasModule('Usuarios')) children.push(getItem('Usuarios', '/configuracion/usuarios', <UserOutlined />))
-      if (hasModule('Roles')) children.push(getItem('Roles', '/configuracion/roles', <TeamOutlined />))
-      if (hasModule('Modulos')) children.push(getItem('Módulos', '/configuracion/modulos', <AppstoreOutlined />))
-      if (hasModule('Comprobantes')) children.push(getItem('Comprobantes', '/configuracion/comprobantes', <FileTextOutlined />))
-      if (hasModule('Estados')) children.push(getItem('Estados', '/configuracion/estados', <SettingOutlined />))
+      if (hasModule('Empresa')) children.push(getItem('Empresa', '/dashboard/configuracion/empresa', <ShopOutlined />))
+      if (hasModule('Usuarios')) children.push(getItem('Usuarios', '/dashboard/configuracion/usuarios', <UserOutlined />))
+      if (hasModule('Roles')) children.push(getItem('Roles', '/dashboard/configuracion/roles', <TeamOutlined />))
+      if (hasModule('Modulos')) children.push(getItem('Módulos', '/dashboard/configuracion/modulos', <AppstoreOutlined />))
+      if (hasModule('Comprobantes')) children.push(getItem('Comprobantes', '/dashboard/configuracion/comprobantes', <FileTextOutlined />))
+      if (hasModule('Estados')) children.push(getItem('Estados', '/dashboard/configuracion/estados', <SettingOutlined />))
       items.push(getItem('Configuración', 'config-group', <SettingOutlined />, children))
     }
 
@@ -148,28 +164,36 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} />
-      <Route path="/" element={validSession ? <AppLayout menuItems={menuItems}><Outlet /></AppLayout> : <Navigate to="/login" />}>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/productos" element={<ProductosLandingPage />} />
+      <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/dashboard" />} />
+      <Route path="/session-expired" element={<SessionExpiredPage />} />
+      <Route path="/dashboard" element={validSession ? <AppLayout menuItems={menuItems}><Outlet /></AppLayout> : <Navigate to="/login" />}>
         <Route index element={<InicioPage />} />
 
-        {hasAccess('/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}
-        {hasAccess('/productos/categorias') && <Route path="productos/categorias" element={<CategoriasPage />} />}
-        {hasAccess('/entradas/compras') && <Route path="entradas/compras" element={<ComprasPage />} />}
-        {hasAccess('/entradas/proveedores') && <Route path="entradas/proveedores" element={<ProveedoresPage />} />}
-        {hasAccess('/salidas/ventas') && <Route path="salidas/ventas" element={<VentasPage />} />}
-        {hasAccess('/cotizaciones') && <Route path="cotizaciones" element={<CotizacionesPage />} />}
-        {hasAccess('/salidas/clientes') && <Route path="salidas/clientes" element={<ClientesPage />} />}
+        {hasAccess('/dashboard/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}
+        {hasAccess('/dashboard/productos/categorias') && <Route path="productos/categorias" element={<CategoriasPage />} />}
+        {hasAccess('/dashboard/productos/unidades') && <Route path="productos/unidades" element={<UnidadesPage />} />}
+        {hasAccess('/dashboard/productos/categorias-unidad') && <Route path="productos/categorias-unidad" element={<CategoriasUnidadPage />} />}
+        {hasModule('Productos') && <Route path="productos/kardex" element={<KardexPage />} />}
+        {hasAccess('/dashboard/entradas/compras') && <Route path="entradas/compras" element={<ComprasPage />} />}
+        {hasAccess('/dashboard/entradas/proveedores') && <Route path="entradas/proveedores" element={<ProveedoresPage />} />}
+        {hasAccess('/dashboard/salidas/ventas') && <Route path="salidas/ventas" element={<VentasPage />} />}
+        {hasAccess('/dashboard/cotizaciones') && <Route path="cotizaciones" element={<CotizacionesPage />} />}
+        {hasAccess('/dashboard/salidas/clientes') && <Route path="salidas/clientes" element={<ClientesPage />} />}
 
-        <Route path="gastos" element={<GastosPage />} />
-        {hasAccess('/reportes') && <Route path="reportes" element={<ReportesPage />} />}
+        {hasAccess('/dashboard/gastos') && <Route path="gastos" element={<GastosPage />} />}
+        {hasAccess('/dashboard/reportes') && <Route path="reportes" element={<ReportesPage />} />}
+
+        <Route path="perfil" element={<PerfilPage />} />
 
         <Route path="configuracion" element={<ConfiguracionesPage />}>
-          {hasAccess('/configuracion/empresa') && <Route path="empresa" element={<EmpresaPage />} />}
-          {hasAccess('/configuracion/usuarios') && <Route path="usuarios" element={<UsuariosPage />} />}
-          {hasAccess('/configuracion/roles') && <Route path="roles" element={<RolesPage />} />}
-          <Route path="modulos" element={<ModulosPage />} />
-          {hasAccess('/configuracion/comprobantes') && <Route path="comprobantes" element={<ComprobantesPage />} />}
-          {hasAccess('/configuracion/estados') && <Route path="estados" element={<EstadosPage />} />}
+          {hasAccess('/dashboard/configuracion/empresa') && <Route path="empresa" element={<EmpresaPage />} />}
+          {hasAccess('/dashboard/configuracion/usuarios') && <Route path="usuarios" element={<UsuariosPage />} />}
+          {hasAccess('/dashboard/configuracion/roles') && <Route path="roles" element={<RolesPage />} />}
+          {hasAccess('/dashboard/configuracion/modulos') && <Route path="modulos" element={<ModulosPage />} />}
+          {hasAccess('/dashboard/configuracion/comprobantes') && <Route path="comprobantes" element={<ComprobantesPage />} />}
+          {hasAccess('/dashboard/configuracion/estados') && <Route path="estados" element={<EstadosPage />} />}
         </Route>
       </Route>
     </Routes>

@@ -14,6 +14,7 @@ import {
   deleteEmpresaImagenPie,
 } from '../../services/empresaService'
 import { useEmpresaStore, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../stores/empresaStore'
+import { resolveUrl } from '../../utils/resolveUrl'
 import type { EmpresaUpdate } from '../../types/empresa'
 
 const { useBreakpoint } = Grid
@@ -82,17 +83,17 @@ export default function EmpresaPage() {
       setColorSecundario(empresa.color_secundario || DEFAULT_SECONDARY)
       setLogoFileList(
         empresa.logo
-          ? [{ uid: '-1', name: 'logo', status: 'done', url: empresa.logo }]
+          ? [{ uid: '-1', name: 'logo', status: 'done', url: resolveUrl(empresa.logo) }]
           : []
       )
       setEncabezadoFileList(
         empresa.imagen_encabezado
-          ? [{ uid: '-2', name: 'encabezado', status: 'done', url: empresa.imagen_encabezado }]
+          ? [{ uid: '-2', name: 'encabezado', status: 'done', url: resolveUrl(empresa.imagen_encabezado) }]
           : []
       )
       setPieFileList(
         empresa.imagen_pie
-          ? [{ uid: '-3', name: 'pie', status: 'done', url: empresa.imagen_pie }]
+          ? [{ uid: '-3', name: 'pie', status: 'done', url: resolveUrl(empresa.imagen_pie) }]
           : []
       )
     }

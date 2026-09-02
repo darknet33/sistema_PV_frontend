@@ -1,5 +1,6 @@
 export interface CotizacionDetalleCreate {
   producto_id: number
+  unidad_id?: number | null
   cantidad: number
   costo: number
   utilidad_pct: number
@@ -12,10 +13,17 @@ export interface CotizacionDetalleResponse {
   producto_codigo: string
   producto_categoria: string
   producto_imagen?: string | null
+  unidad_id: number | null
+  unidad_nombre: string
+  unidad_abreviatura: string
+  es_principal: boolean
+  factor_conversion: number
   cantidad: number
   costo: number
   utilidad_pct: number
   precio_venta: number
+  stock_actual: number
+  cantidad_principal: number
 }
 
 export interface CotizacionCreate {
@@ -24,8 +32,10 @@ export interface CotizacionCreate {
   con_factura?: boolean
   incluir_imagenes?: boolean
   modalidad_pago?: string
+  forma_pago?: string
   validez_dias?: number
   terminos_condiciones?: string
+  descuento?: number
   detalles: CotizacionDetalleCreate[]
 }
 
@@ -35,8 +45,10 @@ export interface CotizacionUpdate {
   con_factura?: boolean
   incluir_imagenes?: boolean
   modalidad_pago?: string
+  forma_pago?: string
   validez_dias?: number
   terminos_condiciones?: string
+  descuento?: number
   detalles?: CotizacionDetalleCreate[]
 }
 
@@ -54,10 +66,13 @@ export interface Cotizacion {
   con_factura: boolean
   incluir_imagenes: boolean
   modalidad_pago: string
+  forma_pago: string
   validez_dias: number
   terminos_condiciones: string
   subtotal: number
   iva: number
+  it: number
+  descuento: number
   total: number
   activo: boolean
   usuario_id: number

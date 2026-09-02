@@ -1,30 +1,39 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Space, Tag, Select, Spin, Switch, Grid, Upload, Image as AntImage } from 'antd'
+import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Tag, Spin, Switch, Grid, Upload, Image as AntImage, Select, Radio } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined, UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { Producto, ProductoCreate } from '../types/producto'
+import type { ProductoUnidadCreate } from '../types/productoUnidad'
 import { getProductos, createProducto, updateProducto, deleteProducto, toggleProductoActivo, exportProductos, importProductos, deleteProductosBatch, deleteAllProductos, uploadProductoImagen, deleteProductoImagen } from '../services/productoService'
 import categoriaService from '../services/categoriaService'
 import type { Categoria } from '../types/categoria'
+import unidadMedidaService from '../services/unidadMedidaService'
+import type { UnidadMedida } from '../types/unidadMedida'
 import { calcularPrecioBase } from '../utils/pricing'
+import { resolveUrl } from '../utils/resolveUrl'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
+import SubCrudSelect from '../components/SubCrudSelect'
 
 const { useBreakpoint } = Grid
+
+interface UnidadRow {
+  key: string
+  unidad_id: number | null
+  es_principal: boolean
+  factor_conversion: number
+}
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [allUnidades, setAllUnidades] = useState<UnidadMedida[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null)
   const [form] = Form.useForm()
-
-  const [catModalVisible, setCatModalVisible] = useState(false)
-  const [catForm] = Form.useForm()
-  const [editingCategoria, setEditingCategoria] = useState<Categoria | null>(null)
 
   const [filterCategoria, setFilterCategoria] = useState<number | undefined>(undefined)
   const [searchText, setSearchText] = useState('')
@@ -45,6 +54,7 @@ export default function ProductosPage() {
   )
 
   const [imageFileList, setImageFileList] = useState<UploadFile[]>([])
+  const [unidadesRows, setUnidadesRows] = useState<UnidadRow[]>([])
 
   const filteredProductos = useMemo(() => {
     return productos.filter((p) => {
@@ -93,6 +103,15 @@ export default function ProductosPage() {
     }
   }
 
+  const loadUnidades = async () => {
+    try {
+      const data = await unidadMedidaService.getAll()
+      setAllUnidades(Array.isArray(data) ? data : [])
+    } catch {
+      message.error('Error al cargar unidades')
+    }
+  }
+
   const refreshProductos = useCallback(async () => {
     try {
       const data = await getProductos()
@@ -105,19 +124,41 @@ export default function ProductosPage() {
   useEffect(() => {
     loadProductos()
     loadCategorias()
+    loadUnidades()
   }, [])
 
   useRealtimeRefresh('productos', refreshProductos)
   useRealtimeRefresh('dashboard', refreshProductos)
 
+  const buildUnidadesPayload = (): ProductoUnidadCreate[] => {
+    return unidadesRows
+      .filter((r) => r.unidad_id != null)
+      .map((r) => ({
+        unidad_id: r.unidad_id!,
+        es_principal: r.es_principal,
+        factor_conversion: r.factor_conversion || 1,
+      }))
+  }
+
   const handleSave = async (values: ProductoCreate) => {
     try {
+      const unidadesPayload = buildUnidadesPayload()
+      if (unidadesPayload.length === 0) {
+        message.warning('Debe agregar al menos una unidad al producto')
+        return
+      }
+      const tienePrincipal = unidadesPayload.some((u) => u.es_principal)
+      if (!tienePrincipal) {
+        message.warning('Debe marcar una unidad como principal')
+        return
+      }
+
       let productoId = editingProducto?.id
       if (editingProducto) {
-        await updateProducto(editingProducto.id, values)
+        await updateProducto(editingProducto.id, { ...values, unidades: unidadesPayload })
         message.success('Producto actualizado')
       } else {
-        const created = await createProducto({ ...values, stock_actual: values.stock_inicial, usuario_id: 1 })
+        const created = await createProducto({ ...values, stock_actual: values.stock_inicial, usuario_id: 1, unidades: unidadesPayload })
         productoId = created.id
         message.success('Producto creado')
       }
@@ -132,6 +173,7 @@ export default function ProductosPage() {
       setModalVisible(false)
       form.resetFields()
       setImageFileList([])
+      setUnidadesRows([])
       loadProductos()
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al guardar')
@@ -216,60 +258,34 @@ export default function ProductosPage() {
     }
   }
 
-  const handleOpenCatModal = (record?: Categoria) => {
-    if (record) {
-      setEditingCategoria(record)
-      catForm.setFieldsValue(record)
-    } else {
-      setEditingCategoria(null)
-      catForm.resetFields()
-    }
-    setCatModalVisible(true)
+  const addUnidadRow = () => {
+    setUnidadesRows((prev) => [
+      ...prev,
+      { key: String(Date.now()), unidad_id: null, es_principal: prev.length === 0, factor_conversion: 1 },
+    ])
   }
 
-  const handleSaveCategoria = async () => {
-    try {
-      const values = await catForm.validateFields()
-      if (editingCategoria) {
-        await categoriaService.update(editingCategoria.id, values)
-        message.success('Categoría actualizada')
-      } else {
-        await categoriaService.create(values)
-        message.success('Categoría creada')
+  const removeUnidadRow = (key: string) => {
+    setUnidadesRows((prev) => {
+      const next = prev.filter((r) => r.key !== key)
+      if (next.length > 0 && !next.some((r) => r.es_principal)) {
+        next[0].es_principal = true
       }
-      setCatModalVisible(false)
-      loadCategorias()
-    } catch {
-      message.error('Error al guardar categoría')
-    }
+      return next
+    })
   }
 
-  const handleDeleteCategoria = async (id: number) => {
-    try {
-      await categoriaService.delete(id)
-      message.success('Categoría eliminada')
-      loadCategorias()
-    } catch {
-      message.error('Error al eliminar categoría')
-    }
+  const updateUnidadRow = (key: string, field: keyof UnidadRow, value: any) => {
+    setUnidadesRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r
+        if (field === 'es_principal' && value === true) {
+          return { ...prev.find((rr) => rr.key === key)!, [field]: value }
+        }
+        return { ...r, [field]: value }
+      })
+    )
   }
-
-  const catColumns: ColumnsType<Categoria> = useMemo(() => [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    {
-      title: 'Acciones',
-      width: 140,
-      render: (_: unknown, record: Categoria) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenCatModal(record)} />
-          <Popconfirm title="¿Eliminar categoría?" onConfirm={() => handleDeleteCategoria(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ], [])
 
   const columns: ColumnsType<Producto> = useMemo(() => {
     const catMap = new Map<number, string>()
@@ -291,8 +307,9 @@ export default function ProductosPage() {
         key: 'imagen',
         width: 70,
         render: (_, r) =>
-          r.imagen ? <AntImage src={r.imagen} width={40} height={40} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <span className="text-gray-300">-</span>,
+          r.imagen ? <AntImage src={resolveUrl(r.imagen)} width={40} height={40} style={{ objectFit: 'cover', borderRadius: 4 }} /> : <span className="text-gray-300">-</span>,
       },
+      { title: 'Unidad', key: 'unidad_principal', render: (_, r) => r.unidad_principal ? `${r.unidad_principal.unidad_nombre} (${r.unidad_principal.unidad_abreviatura || '-'})` : '-' },
       { title: 'Procedencia', dataIndex: 'procedencia', key: 'procedencia', render: (val) => val || '-' },
       { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
       { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', render: (val) => `Bs. ${Number(val || 0).toFixed(2)}` },
@@ -313,7 +330,19 @@ export default function ProductosPage() {
       {
         title: 'Acciones', key: 'acciones', render: (_, record) => (
           <div className="flex gap-1">
-            <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => { setEditingProducto(record); form.setFieldsValue(record); setImageFileList(record.imagen ? [{ uid: '-1', name: 'imagen', status: 'done', url: record.imagen }] : []); setModalVisible(true) }} />
+            <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => {
+              setEditingProducto(record)
+              form.setFieldsValue(record)
+              setImageFileList(record.imagen ? [{ uid: '-1', name: 'imagen', status: 'done', url: resolveUrl(record.imagen) }] : [])
+              const uRows: UnidadRow[] = (record.unidades || []).map((u, idx) => ({
+                key: `edit-${idx}`,
+                unidad_id: u.unidad_id,
+                es_principal: u.es_principal,
+                factor_conversion: u.factor_conversion,
+              }))
+              setUnidadesRows(uRows.length > 0 ? uRows : [{ key: '1', unidad_id: null, es_principal: true, factor_conversion: 1 }])
+              setModalVisible(true)
+            }} />
             <Popconfirm title="¿Eliminar producto?" onConfirm={() => handleDelete(record.id)}>
               <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
             </Popconfirm>
@@ -326,6 +355,11 @@ export default function ProductosPage() {
   const catSelectOptions = useMemo(() =>
     categorias.map((c) => ({ value: c.id, label: c.nombre })),
     [categorias]
+  )
+
+  const unidadSelectOptions = useMemo(() =>
+    allUnidades.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})`, categoria: u.categoria_nombre })),
+    [allUnidades]
   )
 
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
@@ -354,7 +388,7 @@ export default function ProductosPage() {
         <Button icon={<ImportOutlined />} size={isMobile ? 'small' : 'middle'} loading={importing} onClick={() => fileInputRef.current?.click()}>
           Importar
         </Button>
-        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingProducto(null); form.resetFields(); setImageFileList([]); setModalVisible(true) }}>
+        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingProducto(null); form.resetFields(); setImageFileList([]); setUnidadesRows([{ key: '1', unidad_id: null, es_principal: true, factor_conversion: 1 }]); setModalVisible(true) }}>
           Nuevo Producto
         </Button>
       </PageHeader>
@@ -418,7 +452,7 @@ export default function ProductosPage() {
           }}
         />
       </Spin>
-      <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => { setModalVisible(false); setImageFileList([]) }} onOk={() => form.submit()} className="responsive-modal" width={isMobile ? '95%' : 600}>
+      <Modal title={editingProducto ? 'Editar Producto' : 'Nuevo Producto'} open={modalVisible} onCancel={() => { setModalVisible(false); setImageFileList([]) }} onOk={() => form.submit()} className="responsive-modal" width={isMobile ? '95%' : 700}>
         {editingProducto && (
           <div className="mb-4 p-3 bg-gray-50 rounded">
             <div className="flex flex-col sm:flex-row gap-4 text-sm">
@@ -439,19 +473,18 @@ export default function ProductosPage() {
               <Input placeholder="Origen del producto" />
             </Form.Item>
             <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true, message: 'Seleccione una categoría' }]} className="flex-1 min-w-[160px]">
-              <Select
+              <SubCrudSelect
                 placeholder="Seleccione una categoría"
                 options={catSelectOptions}
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <div className="p-2 border-t border-gray-100">
-                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => handleOpenCatModal()}>
-                        Gestionar categorías
-                      </Button>
-                    </div>
-                  </>
-                )}
+                modalProps={{
+                  title: 'Categorías',
+                  fetchAll: categoriaService.getAll,
+                  create: categoriaService.create,
+                  update: categoriaService.update,
+                  remove: categoriaService.delete,
+                  fields: [{ name: 'nombre', label: 'Nombre' }],
+                  onDataChange: (list) => setCategorias(list),
+                }}
               />
             </Form.Item>
           </div>
@@ -486,6 +519,66 @@ export default function ProductosPage() {
               <InputNumber min={0} className="w-full" />
             </Form.Item>
           </div>
+
+          {/* Sección de Unidades */}
+          <div className="border rounded-lg p-3 mb-4">
+            <div className="flex justify-between items-center mb-3">
+              <span className="font-semibold text-sm">Unidades del Producto</span>
+              <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={addUnidadRow}>
+                Agregar unidad
+              </Button>
+            </div>
+            {unidadesRows.length === 0 && (
+              <div className="text-gray-400 text-xs text-center py-2">No hay unidades agregadas</div>
+            )}
+            {unidadesRows.map((row) => (
+              <div key={row.key} className="flex flex-wrap gap-2 items-end mb-2">
+                <div className="flex-1 min-w-[180px]">
+                  <label className="text-xs text-gray-500">Unidad</label>
+                  <Select
+                    showSearch
+                    placeholder="Seleccionar unidad"
+                    value={row.unidad_id}
+                    onChange={(val) => updateUnidadRow(row.key, 'unidad_id', val)}
+                    options={unidadSelectOptions}
+                    filterOption={(input, option) =>
+                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                    }
+                    className="w-full"
+                  />
+                </div>
+                <div className="min-w-[100px]">
+                  <label className="text-xs text-gray-500">Factor de conversión</label>
+                  <InputNumber
+                    min={0.0001}
+                    step={0.01}
+                    value={row.factor_conversion}
+                    onChange={(val) => updateUnidadRow(row.key, 'factor_conversion', val || 1)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="min-w-[80px]">
+                  <label className="text-xs text-gray-500">Principal</label>
+                  <div>
+                    <Radio
+                      checked={row.es_principal}
+                      onChange={() => {
+                        setUnidadesRows((prev) => prev.map((r) => ({ ...r, es_principal: r.key === row.key })))
+                      }}
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="text"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  onClick={() => removeUnidadRow(row.key)}
+                />
+              </div>
+            ))}
+          </div>
+
           <Form.Item label="Imagen del producto">
             <Upload
               listType="picture-card"
@@ -504,26 +597,6 @@ export default function ProductosPage() {
             </Upload>
           </Form.Item>
         </Form>
-      </Modal>
-
-      <Modal
-        title={editingCategoria ? 'Editar Categoría' : 'Nueva Categoría'}
-        open={catModalVisible}
-        onCancel={() => setCatModalVisible(false)}
-        onOk={handleSaveCategoria}
-        className="responsive-modal"
-      >
-        <Form form={catForm} layout="vertical" className="mb-4">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input placeholder="Nombre de la categoría" />
-          </Form.Item>
-        </Form>
-        <ResponsiveTable
-          columns={catColumns}
-          dataSource={categorias}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-        />
       </Modal>
     </div>
   )

@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Select, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, CloseCircleOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Compra, CompraCreate } from '../types/compra'
-import { getCompras, createCompra, updateCompra, deleteCompra, anularCompra, downloadCompraReport, downloadCompraPdf } from '../services/compraService'
+import { getCompras, createCompra, updateCompra, deleteCompra, anularCompra, fetchCompraReportBlob, fetchCompraPdfBlob } from '../services/compraService'
+import usePdfPreview from '../hooks/usePdfPreview'
 import { getProveedores, createProveedor, updateProveedor, deleteProveedor } from '../services/proveedorService'
 import comprobanteService from '../services/comprobanteService'
 import { getProductos } from '../services/productoService'
@@ -15,9 +16,10 @@ import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
 import categoriaService from '../services/categoriaService'
 import { formatCurrency } from '../utils/format'
-import { calcularPrecioBase } from '../utils/pricing'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
+import SubCrudSelect from '../components/SubCrudSelect'
+import ProductoSelectorModal from '../components/ProductoSelectorModal'
 
 const { useBreakpoint } = Grid
 
@@ -34,6 +36,7 @@ interface DetalleLine {
 export default function ComprasPage() {
   const screens = useBreakpoint()
   const isMobile = !screens.md
+  const { openPdf, previewModal } = usePdfPreview()
   const [compras, setCompras] = useState<Compra[]>([])
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
@@ -56,21 +59,8 @@ export default function ComprasPage() {
 
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
 
-  const [proveedorModalVisible, setProveedorModalVisible] = useState(false)
-  const [editingProveedor, setEditingProveedor] = useState<Proveedor | null>(null)
-  const [proveedorForm] = Form.useForm()
-
-  const [comprobanteModalVisible, setComprobanteModalVisible] = useState(false)
-  const [editingComprobante, setEditingComprobante] = useState<any>(null)
-  const [comprobanteForm] = Form.useForm()
-
-  const [estadoModalVisible, setEstadoModalVisible] = useState(false)
-  const [editingEstado, setEditingEstado] = useState<any>(null)
-  const [estadoForm] = Form.useForm()
-
   const [productoModalVisible, setProductoModalVisible] = useState(false)
   const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
-  const [productoSearchText, setProductoSearchText] = useState('')
 
   const proveedorOptions = useMemo(() =>
     proveedores.filter((p) => p.activo !== false).map((p) => ({ value: p.id, label: p.nombre })),
@@ -92,24 +82,6 @@ export default function ComprasPage() {
     categorias.forEach((c) => map.set(c.id, c.nombre))
     return map
   }, [categorias])
-
-  const productosActivos = useMemo(() =>
-    productos.filter((p) => p.activo !== false),
-    [productos]
-  )
-
-  const filteredProductos = useMemo(() => {
-    const base = productosActivos
-    if (!productoSearchText) return base
-    const q = productoSearchText.toLowerCase()
-    return base.filter((p) => {
-      const catNombre = catMap.get(p.categoria_id) || ''
-      return p.codigo.toLowerCase().includes(q) ||
-        p.descripcion.toLowerCase().includes(q) ||
-        p.marca.toLowerCase().includes(q) ||
-        catNombre.toLowerCase().includes(q)
-    })
-  }, [productosActivos, productoSearchText, catMap])
 
   const loadCompras = useCallback(async () => {
     setLoading(true)
@@ -215,6 +187,9 @@ export default function ComprasPage() {
     setNumComprobanteAuto('')
     setAutoNum(false)
     form.resetFields()
+    form.setFieldsValue({
+      fecha: dayjs(),
+    })
     setModalVisible(true)
   }
 
@@ -319,14 +294,12 @@ export default function ComprasPage() {
 
   const openProductoModal = (detKey: string) => {
     setSelectedDetalleKey(detKey)
-    setProductoSearchText('')
     setProductoModalVisible(true)
   }
 
   const selectProducto = (producto: Producto) => {
     if (selectedDetalleKey) {
-      const p = productosActivos.find((p2) => p2.id === producto.id)
-      const costo = Number(p?.precio ?? producto.precio ?? 0)
+      const costo = Number(producto.precio ?? 0)
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
           ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', costo }
@@ -359,20 +332,18 @@ export default function ComprasPage() {
     try {
       const inicio = filterFecha?.[0]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().startOf('month').format('YYYY-MM-DDTHH:mm:ss')
       const fin = filterFecha?.[1]?.format('YYYY-MM-DDTHH:mm:ss') || dayjs().format('YYYY-MM-DDTHH:mm:ss')
-      await downloadCompraReport(inicio, fin, searchProveedorText || undefined, filterEstado)
-      message.success('Reporte descargado')
+      await openPdf(
+        () => fetchCompraReportBlob(inicio, fin, searchProveedorText || undefined, filterEstado),
+        'Reporte de Compras',
+        `reporte_compras_${dayjs().format('YYYYMMDD')}.pdf`
+      )
     } catch {
       message.error('Error al descargar reporte')
     }
   }
 
   const handlePrintPdf = async (id: number) => {
-    try {
-      await downloadCompraPdf(id)
-      message.success('PDF descargado')
-    } catch {
-      message.error('Error al generar PDF')
-    }
+    await openPdf(() => fetchCompraPdfBlob(id), `Comprobante de Compra #${id}`, `compra_${id}.pdf`)
   }
 
   const columns: ColumnsType<Compra> = [
@@ -387,7 +358,9 @@ export default function ComprasPage() {
       title: 'Acciones', key: 'acciones', width: 200, render: (_, record) => (
         <div className="flex gap-1">
           <Button icon={<EditOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => openEditModal(record)} />
-          <Button icon={<PrinterOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => handlePrintPdf(record.id)} />
+          <Button icon={<EyeOutlined />} size={isMobile ? 'middle' : 'small'} onClick={() => handlePrintPdf(record.id)} title="Vista previa del PDF">
+            Vista previa
+          </Button>
           {record.estado_nombre !== 'Anulado' ? (
             <Popconfirm title="¿Anular compra?" onConfirm={() => handleAnular(record.id)}>
               <Button icon={<CloseCircleOutlined />} size={isMobile ? 'middle' : 'small'} className="!text-amber-500" />
@@ -422,81 +395,6 @@ export default function ComprasPage() {
       />
     )
   }
-
-  const productoColumns: ColumnsType<Producto> = [
-    {
-      title: 'Producto',
-      key: 'producto',
-      render: (_, r) => (
-        <div>
-          <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
-          <div style={{ fontSize: 12, color: '#888' }}>{r.marca}</div>
-        </div>
-      ),
-    },
-    { title: 'Costo Bs.', dataIndex: 'precio', key: 'precio', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    { title: 'Utilidad Bs.', dataIndex: 'utilidad', key: 'utilidad', width: 90, render: (val: number) => `Bs. ${Number(val || 0).toFixed(2)}` },
-    {
-      title: 'Precio Base', key: 'precio_base', width: 100,
-      render: (_, r) => {
-        const pb = calcularPrecioBase(Number(r.precio || 0), Number(r.utilidad || 0))
-        return `Bs. ${pb.toFixed(2)}`
-      },
-    },
-    { title: 'Stock', dataIndex: 'stock_actual', key: 'stock_actual', width: 60 },
-  ]
-
-  const proveedorColumns: ColumnsType<Proveedor> = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    { title: 'NIT', dataIndex: 'nit' },
-    { title: 'Contacto', dataIndex: 'contacto' },
-    { title: 'Celular', dataIndex: 'celular_contacto' },
-    {
-      title: 'Acciones', width: 120,
-      render: (_: unknown, record: Proveedor) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingProveedor(record); proveedorForm.setFieldsValue(record); setProveedorModalVisible(true) }} />
-            <Popconfirm title="¿Eliminar proveedor?" onConfirm={async () => { try { await deleteProveedor(record.id); message.success('Proveedor eliminado'); loadProveedores() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
-              <Button size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
-
-  const comprobanteSubColumns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    { title: 'Número', dataIndex: 'numero' },
-    {
-      title: 'Acciones', width: 120,
-      render: (_: unknown, record: any) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingComprobante(record); comprobanteForm.setFieldsValue(record); setComprobanteModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar comprobante?" onConfirm={async () => { try { await comprobanteService.delete(record.id); message.success('Comprobante eliminado'); loadComprobantes() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
-
-  const estadoSubColumns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Nombre', dataIndex: 'nombre' },
-    {
-      title: 'Acciones', width: 120,
-      render: (_: unknown, record: any) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingEstado(record); estadoForm.setFieldsValue(record); setEstadoModalVisible(true) }} />
-          <Popconfirm title="¿Eliminar estado?" onConfirm={async () => { try { await estadoService.delete(record.id); message.success('Estado eliminado'); loadEstados() } catch (e: any) { message.error(e.response?.data?.detail || 'Error al eliminar') } }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
 
   const fabVisible = isMobile && !modalVisible
 
@@ -583,40 +481,46 @@ export default function ComprasPage() {
 
           <div className="flex flex-wrap gap-3">
             <Form.Item name="proveedor_id" label="Proveedor" rules={[{ required: true }]} className="flex-1 min-w-[180px] !mb-3">
-              <Select
-                showSearch
+              <SubCrudSelect
                 placeholder="Seleccione un proveedor"
-                filterOption={(input, option) => (option?.label as string || '').toLowerCase().includes(input.toLowerCase())}
                 options={proveedorOptions}
                 disabled={editingCompra !== null}
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <div className="p-2 border-t border-gray-100">
-                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingProveedor(null); proveedorForm.resetFields(); setProveedorModalVisible(true) }}>
-                        Gestionar proveedores
-                      </Button>
-                    </div>
-                  </>
-                )}
+                modalProps={{
+                  title: 'Proveedores',
+                  fetchAll: getProveedores,
+                  create: createProveedor,
+                  update: updateProveedor,
+                  remove: deleteProveedor,
+                  fields: [
+                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nit', label: 'NIT' },
+                    { name: 'materiales', label: 'Materiales' },
+                    { name: 'contacto', label: 'Contacto' },
+                    { name: 'celular_contacto', label: 'Celular' },
+                    { name: 'email_contacto', label: 'Email' },
+                  ],
+                  onDataChange: (list) => setProveedores(list),
+                }}
               />
             </Form.Item>
             <Form.Item name="comprobante_id" label="Comprobante" rules={[{ required: true }]} className="flex-1 min-w-[130px] !mb-3">
-              <Select
+              <SubCrudSelect
                 placeholder="Seleccione un comprobante"
                 options={comprobanteOptions}
                 disabled={editingCompra !== null}
-                onChange={(val) => updateNumComprobanteAuto(val)}
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <div className="p-2 border-t border-gray-100">
-                      <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingComprobante(null); comprobanteForm.resetFields(); setComprobanteModalVisible(true) }}>
-                        Gestionar comprobantes
-                      </Button>
-                    </div>
-                  </>
-                )}
+                onChange={(val) => updateNumComprobanteAuto(val as number | null)}
+                modalProps={{
+                  title: 'Comprobantes',
+                  fetchAll: comprobanteService.getAll,
+                  create: comprobanteService.create,
+                  update: comprobanteService.update,
+                  remove: comprobanteService.delete,
+                  fields: [
+                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'numero', label: 'Número', type: 'number' },
+                  ],
+                  onDataChange: (list) => setComprobantes(list),
+                }}
               />
             </Form.Item>
             <Form.Item name="num_comprobante" label="N° Comprobante" className="flex-1 min-w-[160px] !mb-3">
@@ -635,19 +539,18 @@ export default function ComprasPage() {
           </div>
 
           <Form.Item name="estado_id" label="Estado" rules={[{ required: true }]}>
-            <Select
+            <SubCrudSelect
               placeholder="Seleccione un estado"
               options={estadoOptions}
-              popupRender={(menu) => (
-                <>
-                  {menu}
-                  <div className="p-2 border-t border-gray-100">
-                    <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => { setEditingEstado(null); estadoForm.resetFields(); setEstadoModalVisible(true) }}>
-                      Gestionar estados
-                    </Button>
-                  </div>
-                </>
-              )}
+              modalProps={{
+                title: 'Estados',
+                fetchAll: estadoService.getAll,
+                create: estadoService.create,
+                update: estadoService.update,
+                remove: estadoService.delete,
+                fields: [{ name: 'nombre', label: 'Nombre' }],
+                onDataChange: (list) => setEstados(list),
+              }}
             />
           </Form.Item>
 
@@ -711,156 +614,13 @@ export default function ComprasPage() {
         </Form>
       </Modal>
 
-      <Modal
-        title="Seleccionar producto"
-        open={productoModalVisible}
+      <ProductoSelectorModal
+        visible={productoModalVisible}
         onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
-        footer={null}
-        width={700}
-        className="responsive-modal"
-      >
-        <Input.Search
-          placeholder="Buscar por código, descripción o marca"
-          allowClear
-          className="mb-3"
-          value={productoSearchText}
-          onChange={(e) => setProductoSearchText(e.target.value)}
-        />
-        <Table
-          columns={productoColumns}
-          dataSource={filteredProductos}
-          rowKey="id"
-          size="small"
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 8 }}
-          onRow={(record) => ({
-            onClick: () => selectProducto(record),
-            style: { cursor: 'pointer' },
-          })}
-        />
-      </Modal>
-
-      <Modal
-        title={editingProveedor ? 'Editar Proveedor' : 'Nuevo Proveedor'}
-        open={proveedorModalVisible}
-        onCancel={() => setProveedorModalVisible(false)}
-        onOk={async () => {
-          try {
-            const values = await proveedorForm.validateFields()
-            if (editingProveedor) {
-              await updateProveedor(editingProveedor.id, values)
-              message.success('Proveedor actualizado')
-            } else {
-              await createProveedor(values)
-              message.success('Proveedor creado')
-            }
-            setProveedorModalVisible(false)
-            loadProveedores()
-          } catch {
-            message.error('Error al guardar proveedor')
-          }
-        }}
-        width={500}
-        className="responsive-modal"
-      >
-        <Form form={proveedorForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="nit" label="NIT" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="materiales" label="Materiales" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="contacto" label="Contacto" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="celular_contacto" label="Celular" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="email_contacto" label="Email">
-            <Input type="email" />
-          </Form.Item>
-        </Form>
-        <ResponsiveTable
-          columns={proveedorColumns}
-          dataSource={proveedores}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-        />
-      </Modal>
-
-      <Modal
-        title={editingComprobante ? 'Editar Comprobante' : 'Nuevo Comprobante'}
-        open={comprobanteModalVisible}
-        onCancel={() => setComprobanteModalVisible(false)}
-        onOk={async () => {
-          try {
-            const values = await comprobanteForm.validateFields()
-            if (editingComprobante) {
-              await comprobanteService.update(editingComprobante.id, values)
-              message.success('Comprobante actualizado')
-            } else {
-              await comprobanteService.create(values)
-              message.success('Comprobante creado')
-            }
-            setComprobanteModalVisible(false)
-            loadComprobantes()
-          } catch {
-            message.error('Error al guardar comprobante')
-          }
-        }}
-      >
-        <Form form={comprobanteForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="numero" label="Número inicial" rules={[{ required: true }]}>
-            <InputNumber min={1} className="w-full" />
-          </Form.Item>
-        </Form>
-        <ResponsiveTable
-          columns={comprobanteSubColumns}
-          dataSource={comprobantes}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-        />
-      </Modal>
-
-      <Modal
-        title={editingEstado ? 'Editar Estado' : 'Nuevo Estado'}
-        open={estadoModalVisible}
-        onCancel={() => setEstadoModalVisible(false)}
-        onOk={async () => {
-          try {
-            const values = await estadoForm.validateFields()
-            if (editingEstado) {
-              await estadoService.update(editingEstado.id, values)
-              message.success('Estado actualizado')
-            } else {
-              await estadoService.create(values)
-              message.success('Estado creado')
-            }
-            setEstadoModalVisible(false)
-            loadEstados()
-          } catch {
-            message.error('Error al guardar estado')
-          }
-        }}
-      >
-        <Form form={estadoForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-        </Form>
-        <ResponsiveTable
-          columns={estadoSubColumns}
-          dataSource={estados}
-          rowKey="id"
-          pagination={{ pageSize: 5 }}
-        />
-      </Modal>
+        onSelect={selectProducto}
+        showCostInfo
+      />
+      {previewModal}
     </div>
   )
 }

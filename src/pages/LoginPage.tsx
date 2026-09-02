@@ -4,6 +4,7 @@ import { Alert, Button, Card, Form, Input, Spin, message, notification } from 'a
 import { LockOutlined, UserOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
+import { resolveUrl } from '../utils/resolveUrl'
 import { checkUsers } from '../services/authService'
 import type { LoginRequest, SetupAdminRequest } from '../types/auth'
 
@@ -39,7 +40,7 @@ export default function LoginPage() {
     try {
       await login(values)
       message.success('Bienvenido al Sistema de Inventario')
-      navigate('/')
+      navigate('/dashboard')
     } catch (error: any) {
       if (error.response?.status === 401) {
         notification.error({
@@ -62,7 +63,7 @@ export default function LoginPage() {
     try {
       await setupAdmin(values)
       message.success('Administrador creado correctamente')
-      navigate('/')
+      navigate('/dashboard')
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'No se pudo crear el administrador')
     } finally {
@@ -83,7 +84,7 @@ export default function LoginPage() {
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           {empresa?.logo ? (
-            <img src={empresa.logo} alt="Logo" style={{ maxHeight: 80, maxWidth: '100%', objectFit: 'contain' }} />
+            <img src={resolveUrl(empresa.logo)} alt="Logo" style={{ maxHeight: 80, maxWidth: '100%', objectFit: 'contain' }} />
           ) : (
             <h1 style={{ color: primary }}>Sistema de Inventario</h1>
           )}
