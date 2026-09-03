@@ -321,8 +321,9 @@ export default function ProductosPage() {
       {
         title: 'Producto',
         key: 'producto',
+        width: isMobile ? undefined : 280,
         render: (_, r) => (
-          <div>
+          <div style={{ minWidth: isMobile ? undefined : 200, whiteSpace: 'normal', wordBreak: 'break-word' }}>
             <div><strong>[{r.codigo}]</strong> {catMap.get(r.categoria_id) || ''} - {r.descripcion}</div>
             <div className="text-gray-500 text-xs">{r.marca}</div>
           </div>
