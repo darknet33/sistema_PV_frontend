@@ -248,6 +248,7 @@ export default function CotizacionesPage() {
     setDetalles(
       cot.detalles?.map((d, i) => {
         const prod = productos.find((p) => p.id === d.producto_id)
+        // Catálogo ACTUAL de unidades del producto (refleja cambios hechos al producto)
         const unidadesDisponibles: UnidadDisponible[] = (prod?.unidades || []).map((pu) => ({
           id: pu.unidad_id,
           nombre: pu.unidad_nombre,
@@ -255,23 +256,30 @@ export default function CotizacionesPage() {
           factor: Number(pu.factor_conversion || 1),
           es_principal: !!pu.es_principal,
         }))
-        const factor = Number(d.factor_conversion || 1)
+        // La unidad de la línea, tomada del catálogo actual (si se eliminó, cae a la principal)
+        const unidadSel = unidadesDisponibles.find((uu) => uu.id === d.unidad_id) || unidadesDisponibles.find((uu) => uu.es_principal) || unidadesDisponibles[0] || null
+        const factorActual = unidadSel?.factor || 1
+        const esPrincipalActual = unidadSel?.es_principal ?? true
+        // costo_base reconstruido: costo guardado estaba en la unidad de la línea (factor al crear)
+        const factorGuardado = Number(d.factor_conversion || 1)
+        const costoBase = factorGuardado > 0 ? (Number(d.costo || 0) / factorGuardado) : Number(d.costo || 0)
+        const costo = esPrincipalActual ? costoBase : costoBase * factorActual
         return {
           key: String(i + 1),
           producto_id: d.producto_id,
           producto_nombre: d.producto_nombre,
           producto_codigo: d.producto_codigo,
           producto_categoria: d.producto_categoria || '',
-          unidad_id: d.unidad_id || null,
-          unidad_nombre: d.unidad_nombre || '',
-          unidad_abreviatura: d.unidad_abreviatura || '',
-          es_principal: d.es_principal ?? true,
-          factor_conversion: factor,
+          unidad_id: unidadSel?.id ?? null,
+          unidad_nombre: unidadSel?.nombre || d.unidad_nombre || '',
+          unidad_abreviatura: unidadSel?.abreviatura || d.unidad_abreviatura || '',
+          es_principal: esPrincipalActual,
+          factor_conversion: factorActual,
           cantidad: d.cantidad,
-          costo: Number(d.costo || 0),
-          costo_base: Number(d.costo || 0) * factor,
+          costo: costo,
+          costo_base: costoBase,
           utilidad_pct: Number(d.utilidad_pct || 0),
-          precio_venta: Number(d.precio_venta || 0),
+          precio_venta: calcularPrecioVenta(costo, Number(d.utilidad_pct || 0)),
           stock_actual: Number(d.stock_actual || 0),
           unidades_disponibles: unidadesDisponibles,
         }
@@ -373,7 +381,9 @@ export default function CotizacionesPage() {
       const unidadId = principal ? principal.unidad_id : (unidadesDisponibles.length > 0 ? unidadesDisponibles[0].id : null)
       const u = unidadesDisponibles.find((ud) => ud.id === unidadId) || unidadesDisponibles[0] || null
       const factor = u?.factor || 1
-      const costo = u ? (u.es_principal ? costoBase : costoBase / factor) : costoBase
+      // costo_base es el costo de 1 unidad principal; el costo de la línea en su
+      // unidad es costo_base * factor (p. ej. caja factor 10 -> costo x10)
+      const costo = u ? (u.es_principal ? costoBase : costoBase * factor) : costoBase
       setDetalles((prev) => prev.map((d) =>
         d.key === selectedDetalleKey
           ? {
@@ -406,7 +416,9 @@ export default function CotizacionesPage() {
       if (d.key !== key) return d
       const updated = { ...d, [field]: value }
       if (field === 'costo') {
-        updated.costo_base = Number(value || 0) * (updated.factor_conversion || 1)
+        // El costo editado es de la línea en su unidad -> costo_base = costo / factor
+        const f = updated.factor_conversion || 1
+        updated.costo_base = f > 0 ? (Number(value || 0) / f) : Number(value || 0)
         updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
       } else if (field === 'utilidad_pct') {
         updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
@@ -491,14 +503,17 @@ export default function CotizacionesPage() {
     { title: 'Código', dataIndex: 'producto_codigo', key: 'producto_codigo', width: 90 },
     { title: 'Producto', key: 'producto', render: (_: any, r: any) => `${r.producto_categoria ? r.producto_categoria + ' - ' : ''}${r.producto_nombre}` },
     { title: 'Unidad', key: 'unidad', width: 100, render: (_: any, r: any) => r.unidad_nombre ? `${r.unidad_nombre} (${r.unidad_abreviatura || '-'})` : '-' },
-    { title: 'Cant.', dataIndex: 'cantidad', key: 'cantidad', width: 60, render: (_: any, r: any) => (
-      <div>
-        <div>{r.cantidad}</div>
-        {r.cantidad > r.stock_actual && (
-          <div className="text-xs text-red-500 font-medium">Stock: {r.stock_actual}</div>
-        )}
-      </div>
-    )},
+    { title: 'Cant.', dataIndex: 'cantidad', key: 'cantidad', width: 60, render: (_: any, r: any) => {
+      const cantPrincipal = r.cantidad * (Number(r.factor_conversion || 1))
+      return (
+        <div>
+          <div>{r.cantidad}</div>
+          {r.producto_id && cantPrincipal > r.stock_actual && (
+            <div className="text-xs text-red-500 font-medium">Stock: {r.stock_actual}</div>
+          )}
+        </div>
+      )
+    }},
     { title: 'Util. %', dataIndex: 'utilidad_pct', key: 'utilidad_pct', width: 70, render: (val: any) => `${Number(val || 0).toFixed(2)}%` },
     { title: 'P. Venta', dataIndex: 'precio_venta', key: 'precio_venta', width: 90, render: (val: any) => `Bs. ${Number(val || 0).toFixed(2)}` },
     { title: 'Subtotal', key: 'subtotal', width: 100, render: (_: any, r: any) => `Bs. ${(r.cantidad * Number(r.precio_venta || 0)).toFixed(2)}` },
@@ -752,7 +767,7 @@ export default function CotizacionesPage() {
                       const u = det.unidades_disponibles.find((uu) => uu.id === val)
                       if (!u) return
                       const factor = u.factor || 1
-                      const nuevoCosto = u.es_principal ? det.costo_base : det.costo_base / factor
+                      const nuevoCosto = u.es_principal ? det.costo_base : det.costo_base * factor
                       updateDetalle(det.key, 'unidad_id', val)
                       updateDetalle(det.key, 'unidad_nombre', u.nombre || '')
                       updateDetalle(det.key, 'unidad_abreviatura', u.abreviatura || '')

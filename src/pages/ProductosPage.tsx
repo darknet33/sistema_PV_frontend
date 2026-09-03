@@ -136,7 +136,7 @@ export default function ProductosPage() {
       .map((r) => ({
         unidad_id: r.unidad_id!,
         es_principal: r.es_principal,
-        factor_conversion: r.factor_conversion || 1,
+        factor_conversion: r.es_principal ? 1 : Math.max(r.factor_conversion || 1, 1),
       }))
   }
 
@@ -150,6 +150,16 @@ export default function ProductosPage() {
       const tienePrincipal = unidadesPayload.some((u) => u.es_principal)
       if (!tienePrincipal) {
         message.warning('Debe marcar una unidad como principal')
+        return
+      }
+      const principales = unidadesPayload.filter((u) => u.es_principal)
+      if (principales.length > 1) {
+        message.warning('Solo puede marcarse una unidad como principal')
+        return
+      }
+      const secundariaInvalida = unidadesPayload.some((u) => !u.es_principal && u.factor_conversion <= 1)
+      if (secundariaInvalida) {
+        message.warning('Las unidades secundarias deben tener un factor de conversión mayor a 1')
         return
       }
 
@@ -279,11 +289,27 @@ export default function ProductosPage() {
     setUnidadesRows((prev) =>
       prev.map((r) => {
         if (r.key !== key) return r
+        // Al marcar como principal, su factor queda fijo en 1 (no editable)
         if (field === 'es_principal' && value === true) {
-          return { ...prev.find((rr) => rr.key === key)!, [field]: value }
+          return { ...r, es_principal: true, factor_conversion: 1 }
+        }
+        if (field === 'factor_conversion') {
+          // Si es principal se mantiene en 1; las secundarias deben ser > 1
+          const val = Math.max(Number(value || 1), 1)
+          return r.es_principal ? { ...r, factor_conversion: 1 } : { ...r, factor_conversion: val }
         }
         return { ...r, [field]: value }
       })
+    )
+  }
+
+  const cambiarPrincipalRow = (key: string) => {
+    setUnidadesRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        es_principal: r.key === key,
+        factor_conversion: r.key === key ? 1 : r.factor_conversion,
+      }))
     )
   }
 
@@ -338,7 +364,7 @@ export default function ProductosPage() {
                 key: `edit-${idx}`,
                 unidad_id: u.unidad_id,
                 es_principal: u.es_principal,
-                factor_conversion: u.factor_conversion,
+                factor_conversion: u.es_principal ? 1 : Number(u.factor_conversion || 1),
               }))
               setUnidadesRows(uRows.length > 0 ? uRows : [{ key: '1', unidad_id: null, es_principal: true, factor_conversion: 1 }])
               setModalVisible(true)
@@ -550,9 +576,11 @@ export default function ProductosPage() {
                 <div className="min-w-[100px]">
                   <label className="text-xs text-gray-500">Factor de conversión</label>
                   <InputNumber
-                    min={0.0001}
+                    min={row.es_principal ? 1 : 1.0001}
                     step={0.01}
-                    value={row.factor_conversion}
+                    value={row.es_principal ? 1 : row.factor_conversion}
+                    disabled={row.es_principal}
+                    title={row.es_principal ? 'La unidad principal tiene factor 1' : 'Debe ser mayor a 1'}
                     onChange={(val) => updateUnidadRow(row.key, 'factor_conversion', val || 1)}
                     className="w-full"
                   />
@@ -562,9 +590,7 @@ export default function ProductosPage() {
                   <div>
                     <Radio
                       checked={row.es_principal}
-                      onChange={() => {
-                        setUnidadesRows((prev) => prev.map((r) => ({ ...r, es_principal: r.key === row.key })))
-                      }}
+                      onChange={() => cambiarPrincipalRow(row.key)}
                     />
                   </div>
                 </div>
