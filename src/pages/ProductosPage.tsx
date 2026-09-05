@@ -192,8 +192,8 @@ export default function ProductosPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      await deleteProducto(id)
-      message.success('Producto eliminado')
+      const result = await deleteProducto(id)
+      message.success(result?.message || 'Producto eliminado')
       loadProductos()
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al eliminar')
@@ -251,7 +251,8 @@ export default function ProductosPage() {
     try {
       const result = await deleteProductosBatch(selectedRowKeys as number[])
       setSelectedRowKeys([])
-      message.success(result.message)
+      if (result.count === 0) message.warning('No hay productos que eliminar')
+      else message.success(result.message)
       loadProductos()
     } catch (error) {
       message.error('Error al eliminar productos seleccionados')
@@ -261,7 +262,8 @@ export default function ProductosPage() {
   const handleDeleteAll = async () => {
     try {
       const result = await deleteAllProductos()
-      message.success(result.message)
+      if (result.count === 0) message.warning('No hay productos que eliminar')
+      else message.success(result.message)
       loadProductos()
     } catch (error) {
       message.error('Error al eliminar todos los productos')
@@ -370,8 +372,18 @@ export default function ProductosPage() {
               setUnidadesRows(uRows.length > 0 ? uRows : [{ key: '1', unidad_id: null, es_principal: true, factor_conversion: 1 }])
               setModalVisible(true)
             }} />
-            <Popconfirm title="¿Eliminar producto?" onConfirm={() => handleDelete(record.id)}>
-              <Button icon={<DeleteOutlined />} size={isMobile ? 'middle' : 'small'} danger />
+            <Popconfirm
+              title="¿Eliminar producto?"
+              onConfirm={() => handleDelete(record.id)}
+              disabled={record.en_uso}
+            >
+              <Button
+                icon={<DeleteOutlined />}
+                size={isMobile ? 'middle' : 'small'}
+                danger
+                disabled={record.en_uso}
+                title={record.en_uso ? 'El producto está en uso (compras, ventas, cotizaciones o notas de entrega) y no puede eliminarse' : undefined}
+              />
             </Popconfirm>
           </div>
         )

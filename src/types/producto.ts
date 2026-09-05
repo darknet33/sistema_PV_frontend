@@ -16,6 +16,7 @@ export interface Producto {
   imagen: string | null
   usuario_id: number
   activo: boolean
+  en_uso: boolean
   fecha_registro: string
   fecha_actualizado: string | null
   usuario_nombre: string

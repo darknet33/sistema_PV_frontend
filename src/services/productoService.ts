@@ -21,8 +21,9 @@ export const updateProducto = async (id: number, data: ProductoUpdate): Promise<
   return response.data
 }
 
-export const deleteProducto = async (id: number): Promise<void> => {
-  await api.delete(`/productos/${id}`)
+export const deleteProducto = async (id: number): Promise<{ message: string; id: number; soft_deleted: boolean; en_uso: boolean }> => {
+  const response = await api.delete(`/productos/${id}`)
+  return response.data
 }
 
 export const toggleProductoActivo = async (id: number): Promise<Producto> => {
@@ -44,12 +45,12 @@ export const importProductos = async (file: File): Promise<{ creados: number; ac
   return response.data
 }
 
-export const deleteProductosBatch = async (ids: number[]): Promise<{ message: string; count: number }> => {
+export const deleteProductosBatch = async (ids: number[]): Promise<{ message: string; count: number; soft_deleted: number; hard_deleted: number }> => {
   const response = await api.post('/productos/delete-batch', ids)
   return response.data
 }
 
-export const deleteAllProductos = async (): Promise<{ message: string; count: number }> => {
+export const deleteAllProductos = async (): Promise<{ message: string; count: number; soft_deleted: number; hard_deleted: number }> => {
   const response = await api.delete('/productos/all')
   return response.data
 }
