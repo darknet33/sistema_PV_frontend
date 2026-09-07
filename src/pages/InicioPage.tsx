@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Row, Col, Card, Statistic, Table, Tag, Spin, message } from 'antd'
+import { Row, Col, Card, Statistic, Table, Tag, Spin, App } from 'antd'
 import {
   ShoppingCartOutlined,
   ShopOutlined,
@@ -45,6 +45,7 @@ interface DashboardData {
 const formatCurrency = (v: number) => `Bs. ${Number(v || 0).toFixed(2)}`
 
 export default function InicioPage() {
+  const { message } = App.useApp()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const usuario = useAuthStore((s) => s.usuario)

@@ -30,6 +30,7 @@ interface AuthState {
   usuario: Usuario | null
   modulos: ModuloAsignado[]
   isAuthenticated: boolean
+  rehydrated: boolean
   login: (data: LoginRequest) => Promise<void>
   setupAdmin: (data: SetupAdminRequest) => Promise<void>
   logout: () => void
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>()(
       usuario: null,
       modulos: [],
       isAuthenticated: false,
+      rehydrated: false,
       login: async (data: LoginRequest) => {
         const response: LoginResponse = await login(data)
         localStorage.setItem('token', response.access_token)
@@ -82,14 +84,25 @@ export const useAuthStore = create<AuthState>()(
         usuario: state.usuario,
         modulos: state.modulos,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (state?.token && isTokenExpired(state.token)) {
+      merge: (persistedState, currentState) => {
+        const ps = (persistedState ?? {}) as Partial<{
+          token: string | null
+          isAuthenticated: boolean
+          usuario: Usuario | null
+          modulos: ModuloAsignado[]
+        }>
+        let token: string | null = ps.token ?? null
+        let isAuthenticated = ps.isAuthenticated ?? false
+        let usuario: Usuario | null = ps.usuario ?? null
+        let modulos: ModuloAsignado[] = ps.modulos ?? []
+        if (token && isTokenExpired(token)) {
           localStorage.removeItem('token')
-          state.token = null
-          state.usuario = null
-          state.modulos = []
-          state.isAuthenticated = false
+          token = null
+          isAuthenticated = false
+          usuario = null
+          modulos = []
         }
+        return { ...currentState, token, isAuthenticated, usuario, modulos, rehydrated: true }
       },
     }
   )

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, Tag, Input, Switch, Grid, App } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, CloseCircleOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -29,11 +29,12 @@ interface DetalleLine {
   producto_nombre: string
   producto_codigo: string
   producto_categoria: string
-  cantidad: number
+  cantidad: number | null
   costo: number
 }
 
 export default function ComprasPage() {
+  const { message } = App.useApp()
   const screens = useBreakpoint()
   const isMobile = !screens.md
   const { openPdf, previewModal } = usePdfPreview()
@@ -240,7 +241,7 @@ export default function ComprasPage() {
         automatico: autoNum,
         detalles: validDetalles.map((d) => ({
           producto_id: d.producto_id!,
-          cantidad: d.cantidad,
+          cantidad: (d.cantidad || 0),
           costo: d.costo,
         })),
       }
@@ -580,7 +581,7 @@ export default function ComprasPage() {
                     min={1}
                     className="w-full"
                     value={det.cantidad}
-                    onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
+                    onChange={(val) => updateDetalle(det.key, 'cantidad', val)}
                   />
                 </Form.Item>
               </div>

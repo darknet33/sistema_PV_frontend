@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Typography, Input, Spin, Empty, Tag, Grid, message } from 'antd'
+import { App, Button, Typography, Input, Spin, Empty, Tag, Grid } from 'antd'
 import {
   LoginOutlined,
   ArrowLeftOutlined,
@@ -27,6 +27,7 @@ function unidadDelProducto(producto: Producto): string {
 }
 
 export default function ProductosLandingPage() {
+  const { message } = App.useApp()
   const navigate = useNavigate()
   const empresa = useEmpresaStore((state) => state.empresa)
   const loadEmpresa = useEmpresaStore((state) => state.loadEmpresa)

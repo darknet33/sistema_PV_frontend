@@ -1,4 +1,4 @@
-import { Table, Switch, Button, Popconfirm, Space, message } from 'antd'
+import { App, Table, Switch, Button, Popconfirm, Space } from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../components/CrudModal'
@@ -15,6 +15,7 @@ const fields: CrudField[] = [
 ]
 
 export default function ClientesPage() {
+  const { message } = App.useApp()
   const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete, loadData } =
     useCrud<Cliente>({
       getAll: getClientes,

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, message, Tag, Input, Switch, Grid, Checkbox, Card, Space, Select } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, Tag, Input, Switch, Grid, Checkbox, Card, Space, Select, App } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined,
@@ -53,7 +53,7 @@ interface DetalleLine {
   unidad_abreviatura: string
   es_principal: boolean
   factor_conversion: number
-  cantidad: number
+  cantidad: number | null
   costo: number
   costo_base: number
   utilidad_pct: number
@@ -68,13 +68,18 @@ const estadoColor: Record<string, string> = {
   Vencido: 'red',
 }
 
-function calcularPrecioVenta(costo: number, pct: number): number {
+function calcularPrecioVenta(costo: number, pct: number, conFactura: boolean = false): number {
   const c = Number(costo || 0)
   const p = Number(pct || 0)
-  return Math.round((c + (c * p / 100)) * 100) / 100
+  let precio = c + (c * p / 100)
+  if (conFactura) {
+    precio = precio * 1.13 * 1.03
+  }
+  return Math.round(precio * 100) / 100
 }
 
 export default function CotizacionesPage() {
+  const { message } = App.useApp()
   const screens = useBreakpoint()
   const isMobile = !screens.md
   const { openPdf, previewModal } = usePdfPreview()
@@ -118,6 +123,13 @@ export default function CotizacionesPage() {
     categorias.forEach((c) => map.set(c.id, c.nombre))
     return map
   }, [categorias])
+
+  const watchedFecha = Form.useWatch('fecha', form)
+  const watchedValidez = Form.useWatch('validez_dias', form)
+  const watchedConFactura = Form.useWatch('con_factura', form)
+  const watchedDescuento = Form.useWatch('descuento', form)
+  const conFactura = !!watchedConFactura
+  const descuentoPct = Number(watchedDescuento || 0)
 
   const loadCotizaciones = useCallback(async () => {
     setLoading(true)
@@ -279,7 +291,7 @@ export default function CotizacionesPage() {
           costo: costo,
           costo_base: costoBase,
           utilidad_pct: Number(d.utilidad_pct || 0),
-          precio_venta: calcularPrecioVenta(costo, Number(d.utilidad_pct || 0)),
+          precio_venta: calcularPrecioVenta(costo, Number(d.utilidad_pct || 0), conFactura),
           stock_actual: Number(d.stock_actual || 0),
           unidades_disponibles: unidadesDisponibles,
         }
@@ -310,7 +322,7 @@ export default function CotizacionesPage() {
         detalles: validDetalles.map((d) => ({
           producto_id: d.producto_id!,
           unidad_id: d.unidad_id,
-          cantidad: d.cantidad,
+          cantidad: (d.cantidad || 0),
           costo: d.costo_base,
           utilidad_pct: d.utilidad_pct,
         })),
@@ -395,7 +407,7 @@ export default function CotizacionesPage() {
               costo,
               costo_base: costoBase,
               utilidad_pct,
-              precio_venta: calcularPrecioVenta(costo, utilidad_pct),
+              precio_venta: calcularPrecioVenta(costo, utilidad_pct, conFactura),
               stock_actual: Number((producto as any).stock_actual || 0),
               unidad_id: unidadId,
               unidad_nombre: u?.nombre || '',
@@ -419,25 +431,25 @@ export default function CotizacionesPage() {
         // El costo editado es de la línea en su unidad -> costo_base = costo / factor
         const f = updated.factor_conversion || 1
         updated.costo_base = f > 0 ? (Number(value || 0) / f) : Number(value || 0)
-        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
+        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct, conFactura)
       } else if (field === 'utilidad_pct') {
-        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
+        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct, conFactura)
       }
       return updated
     }))
   }
 
-  const watchedFecha = Form.useWatch('fecha', form)
-  const watchedValidez = Form.useWatch('validez_dias', form)
-  const watchedConFactura = Form.useWatch('con_factura', form)
-  const watchedDescuento = Form.useWatch('descuento', form)
-  const conFactura = !!watchedConFactura
-  const descuentoPct = Number(watchedDescuento || 0)
-
   const fechaVencimiento = useMemo(() => {
     if (!watchedFecha) return null
     return dayjs(watchedFecha).add(Number(watchedValidez || 0), 'day')
   }, [watchedFecha, watchedValidez])
+
+  useEffect(() => {
+    setDetalles((prev) => prev.map((d) => ({
+      ...d,
+      precio_venta: calcularPrecioVenta(d.costo, d.utilidad_pct, conFactura),
+    })))
+  }, [conFactura])
 
   const subtotalCalculado = useMemo(() => {
     return detalles.reduce((sum, d) => sum + (d.cantidad || 0) * (d.precio_venta || 0), 0)
@@ -456,8 +468,8 @@ export default function CotizacionesPage() {
   }, [subtotalCalculado, descuentoPct])
 
   const totalCalculado = useMemo(() => {
-    return Math.round((subtotalCalculado + ivaCalculado + itCalculado - descuentoCalculado) * 100) / 100
-  }, [subtotalCalculado, ivaCalculado, itCalculado, descuentoCalculado])
+    return Math.round((subtotalCalculado - descuentoCalculado) * 100) / 100
+  }, [subtotalCalculado, descuentoCalculado])
 
   const handlePdfPreview = async (id: number) => {
     await openPdf(() => fetchCotizacionPdfBlob(id), `Cotización #${id}`, `cotizacion_${id}.pdf`)
@@ -774,7 +786,7 @@ export default function CotizacionesPage() {
                       updateDetalle(det.key, 'factor_conversion', factor)
                       updateDetalle(det.key, 'es_principal', !!u.es_principal)
                       updateDetalle(det.key, 'costo', nuevoCosto)
-                      updateDetalle(det.key, 'precio_venta', calcularPrecioVenta(nuevoCosto, det.utilidad_pct))
+                      updateDetalle(det.key, 'precio_venta', calcularPrecioVenta(nuevoCosto, det.utilidad_pct, conFactura))
                     }}
                     options={det.unidades_disponibles.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})` }))}
                     size="small"
@@ -792,8 +804,14 @@ export default function CotizacionesPage() {
                     step={0.01}
                     className="w-full"
                     value={det.cantidad}
-                    onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
+                    onChange={(val) => updateDetalle(det.key, 'cantidad', val)}
                   />
+                  {det.producto_id && (det.cantidad || 0) * (Number(det.factor_conversion) || 1) > det.stock_actual && (
+                    <div className="text-red-500 text-xs leading-[14px] mt-0.5">
+                      Stock: {det.stock_actual}{' '}
+                      {det.unidades_disponibles.find((u) => u.es_principal)?.abreviatura || ''}
+                    </div>
+                  )}
                 </Form.Item>
               </div>
               <div className="w-[95px] shrink-0">
@@ -854,14 +872,16 @@ export default function CotizacionesPage() {
           </Button>
 
           <div className="text-right font-bold">
-            <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
+            {descuentoPct > 0 && (
+              <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
+            )}
             {conFactura && (
               <>
                 <div className="font-normal text-sm text-orange-500">
-                  IVA ({IVA_RATE}%): Bs. {ivaCalculado.toFixed(2)}
+                  IVA ({IVA_RATE}% inc.): Bs. {ivaCalculado.toFixed(2)}
                 </div>
                 <div className="font-normal text-sm text-orange-500">
-                  IT ({IT_RATE}%): Bs. {itCalculado.toFixed(2)}
+                  IT ({IT_RATE}% inc.): Bs. {itCalculado.toFixed(2)}
                 </div>
               </>
             )}
@@ -966,17 +986,19 @@ export default function CotizacionesPage() {
 
             <Card size="small" className="mt-3">
               <div className="text-right font-bold">
-                <div className="font-normal text-sm text-gray-500">
-                  Subtotal: Bs. {Number(detailCotizacion.subtotal || 0).toFixed(2)}
-                </div>
+                {Number(detailCotizacion.descuento || 0) > 0 && (
+                  <div className="font-normal text-sm text-gray-500">
+                    Subtotal: Bs. {Number(detailCotizacion.subtotal || 0).toFixed(2)}
+                  </div>
+                )}
                 {Number(detailCotizacion.iva || 0) > 0 && (
                   <div className="font-normal text-sm text-orange-500">
-                    IVA (13%): Bs. {Number(detailCotizacion.iva).toFixed(2)}
+                    IVA (13% inc.): Bs. {Number(detailCotizacion.iva).toFixed(2)}
                   </div>
                 )}
                 {Number(detailCotizacion.it || 0) > 0 && (
                   <div className="font-normal text-sm text-orange-500">
-                    IT (3%): Bs. {Number(detailCotizacion.it).toFixed(2)}
+                    IT (3% inc.): Bs. {Number(detailCotizacion.it).toFixed(2)}
                   </div>
                 )}
                 {Number(detailCotizacion.descuento || 0) > 0 && (

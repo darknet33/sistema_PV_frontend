@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Card, Form, Input, Button, Descriptions, Tag, message, Grid } from 'antd'
+import { App, Card, Form, Input, Button, Descriptions, Tag, Grid } from 'antd'
 import { UserOutlined, SaveOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import usuarioService from '../services/usuarioService'
@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader'
 const { useBreakpoint } = Grid
 
 export default function PerfilPage() {
+  const { message } = App.useApp()
   const usuario = useAuthStore((state) => state.usuario)
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)

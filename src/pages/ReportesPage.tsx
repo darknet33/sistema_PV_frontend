@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Card, DatePicker, Button, Space, Row, Col, Table, Statistic, message, Spin, Tag } from 'antd'
+import { Card, DatePicker, Button, Space, Row, Col, Table, Statistic, Spin, Tag, App } from 'antd'
 import { FilePdfOutlined, ReloadOutlined, ShoppingCartOutlined, ShopOutlined, RiseOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
@@ -12,6 +12,7 @@ import usePdfPreview from '../hooks/usePdfPreview'
 const { RangePicker } = DatePicker
 
 export default function ReportesPage() {
+  const { message } = App.useApp()
   const { openPdf, previewModal } = usePdfPreview()
   const [fechas, setFechas] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([dayjs().subtract(1, 'month'), dayjs()])
   const [loading, setLoading] = useState(false)

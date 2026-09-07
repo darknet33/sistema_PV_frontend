@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { Modal, Button, Space, message } from 'antd'
+import { App, Modal, Button, Space } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 
 interface UsePdfPreview {
@@ -8,6 +8,7 @@ interface UsePdfPreview {
 }
 
 export default function usePdfPreview(): UsePdfPreview {
+  const { message } = App.useApp()
   const [visible, setVisible] = useState(false)
   const [titulo, setTitulo] = useState('Vista previa PDF')
   const [url, setUrl] = useState<string | null>(null)

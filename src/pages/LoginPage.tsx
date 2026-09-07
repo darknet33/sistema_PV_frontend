@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, Form, Input, Spin, message, notification, Typography } from 'antd'
+import { App, Alert, Button, Card, Form, Input, Spin, notification, Typography } from 'antd'
 import {
   LockOutlined,
   UserOutlined,
@@ -18,6 +18,7 @@ import type { LoginRequest, SetupAdminRequest } from '../types/auth'
 const { Text } = Typography
 
 export default function LoginPage() {
+  const { message } = App.useApp()
   const [loading, setLoading] = useState(false)
   const [checkingSetup, setCheckingSetup] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(false)

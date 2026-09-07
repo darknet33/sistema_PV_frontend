@@ -1,10 +1,11 @@
-import { Popconfirm, Button, message } from 'antd'
+import { App, Popconfirm, Button } from 'antd'
 import { WarningOutlined } from '@ant-design/icons'
 import CrudPage from '../../components/CrudPage'
 import categoriaService from '../../services/categoriaService'
 import type { Categoria } from '../../types/categoria'
 
 export default function CategoriasPage() {
+  const { message } = App.useApp()
   const handleDeleteAll = async () => {
     try {
       const result = await categoriaService.deleteAll()

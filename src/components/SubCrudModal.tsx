@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Modal, Table, Button, Form, Input, InputNumber, Switch, Select, Popconfirm, message, Space } from 'antd'
+import { App, Modal, Table, Button, Form, Input, InputNumber, Switch, Select, Popconfirm, Space } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { CrudField } from './CrudModal'
@@ -90,6 +90,7 @@ export default function SubCrudModal({
   rowKey,
   onDataChange,
 }: SubCrudModalProps) {
+  const { message } = App.useApp()
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [formVisible, setFormVisible] = useState(false)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { message, Form } from 'antd'
+import { App, Form } from 'antd'
 
 interface CrudActions<T> {
   getAll: () => Promise<T[]>
@@ -19,6 +19,7 @@ export function useCrud<T extends { id: number }>({
   const [modalVisible, setModalVisible] = useState(false)
   const [editingRecord, setEditingRecord] = useState<T | null>(null)
   const [form] = Form.useForm()
+  const { message } = App.useApp()
 
   const loadData = useCallback(async () => {
     setLoading(true)

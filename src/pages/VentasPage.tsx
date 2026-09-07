@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, message, Tag, Input, Switch, Grid } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, Tag, Input, Switch, Grid, App } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined, HistoryOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -31,7 +31,7 @@ interface DetalleLine {
   producto_nombre: string
   producto_codigo: string
   producto_categoria: string
-  cantidad: number
+  cantidad: number | null
   precio: number
   costo: number
   utilidad: number
@@ -41,6 +41,7 @@ interface DetalleLine {
 }
 
 export default function VentasPage() {
+  const { message } = App.useApp()
   const screens = useBreakpoint()
   const isMobile = !screens.md
   const [ventas, setVentas] = useState<Venta[]>([])
@@ -70,7 +71,7 @@ export default function VentasPage() {
 
   const [notaModalVisible, setNotaModalVisible] = useState(false)
   const [notaVenta, setNotaVenta] = useState<Venta | null>(null)
-  const [notaDetalles, setNotaDetalles] = useState<{ key: string; producto_id: number; producto_codigo: string; producto_nombre: string; producto_categoria: string; cantidadVenta: number; cantidad: number }[]>([])
+  const [notaDetalles, setNotaDetalles] = useState<{ key: string; producto_id: number; producto_codigo: string; producto_nombre: string; producto_categoria: string; cantidadVenta: number; cantidad: number | null }[]>([])
   const [notaForm] = Form.useForm()
   const [notaGenerando, setNotaGenerando] = useState(false)
 
@@ -274,7 +275,7 @@ export default function VentasPage() {
         automatico: autoNum,
         detalles: validDetalles.map((d) => ({
           producto_id: d.producto_id!,
-          cantidad: d.cantidad,
+          cantidad: (d.cantidad || 0),
           precio: d.precio,
           utilidad: d.utilidad,
         })),
@@ -369,10 +370,6 @@ export default function VentasPage() {
     }
   }
 
-  const subtotalCalculado = useMemo(() => {
-    return detalles.reduce((sum, d) => sum + (d.cantidad || 0) * (d.precio || 0), 0)
-  }, [detalles])
-
   const watchedImpuesto = Form.useWatch('impuesto', form)
   const watchedDescuento = Form.useWatch('descuento', form)
   const impuestoPct = watchedImpuesto
@@ -381,11 +378,30 @@ export default function VentasPage() {
   const IT_VENTA_DIRECTA = 3
   const itPct = Number(impuestoPct || 0) > 0 ? IT_VENTA_DIRECTA : 0
 
+  const precioFinalItem = (neto: number) =>
+    Number(impuestoPct || 0) > 0
+      ? Math.round((neto || 0) * 1.13 * 1.03 * 100) / 100
+      : (neto || 0)
+
+  const subtotalCalculado = useMemo(() => {
+    return detalles.reduce((sum, d) => sum + (d.cantidad || 0) * precioFinalItem(d.precio || 0), 0)
+  }, [detalles, impuestoPct])
+
+  const ivaInfoCalculado = useMemo(() =>
+    Number(impuestoPct || 0) > 0 ? Math.round(subtotalCalculado * 0.13 * 100) / 100 : 0,
+  [subtotalCalculado, impuestoPct])
+
+  const itInfoCalculado = useMemo(() =>
+    itPct > 0 ? Math.round(subtotalCalculado * 0.03 * 100) / 100 : 0,
+  [subtotalCalculado, itPct])
+
+  const descuentoCalculado = useMemo(() =>
+    Math.round(subtotalCalculado * Number(descuentoPct || 0) / 100 * 100) / 100,
+  [subtotalCalculado, descuentoPct])
+
   const totalCalculado = useMemo(() => {
-    const imp = Number(impuestoPct || 0)
-    const desc = Number(descuentoPct || 0)
-    return subtotalCalculado + (subtotalCalculado * imp / 100) + (subtotalCalculado * itPct / 100) - (subtotalCalculado * desc / 100)
-  }, [subtotalCalculado, impuestoPct, descuentoPct, itPct])
+    return Math.round((subtotalCalculado - descuentoCalculado) * 100) / 100
+  }, [subtotalCalculado, descuentoCalculado])
 
   const handleDownloadReport = async () => {
     try {
@@ -428,7 +444,7 @@ export default function VentasPage() {
   }
 
   const updateNotaDetalleCantidad = (key: string, val: number | null) => {
-    setNotaDetalles((prev) => prev.map((d) => (d.key === key ? { ...d, cantidad: val || 0 } : d)))
+    setNotaDetalles((prev) => prev.map((d) => (d.key === key ? { ...d, cantidad: val } : d)))
   }
 
   const notaTotalCantidades = useMemo(() => {
@@ -442,7 +458,7 @@ export default function VentasPage() {
   const handleGenerarNota = async () => {
     try {
       const values = await notaForm.validateFields()
-      const validDetalles = notaDetalles.filter((d) => d.producto_id != null && d.cantidad > 0)
+      const validDetalles = notaDetalles.filter((d) => d.producto_id != null && (d.cantidad || 0) > 0)
       if (validDetalles.length === 0) {
         message.error('Debe indicar al menos una cantidad a entregar')
         return
@@ -455,7 +471,7 @@ export default function VentasPage() {
         entregue_carnet: values.entregue_carnet,
         recibi_nombre: values.recibi_nombre,
         recibi_carnet: values.recibi_carnet,
-        detalles: validDetalles.map((d) => ({ producto_id: d.producto_id, cantidad: d.cantidad })),
+        detalles: validDetalles.map((d) => ({ producto_id: d.producto_id, cantidad: (d.cantidad || 0) })),
       })
       setNotaModalVisible(false)
       message.success(`Nota de entrega ${nota.numero} generada`)
@@ -786,9 +802,9 @@ export default function VentasPage() {
                     min={1}
                     className="w-full"
                     value={det.cantidad}
-                    onChange={(val) => updateDetalle(det.key, 'cantidad', val || 0)}
+                    onChange={(val) => updateDetalle(det.key, 'cantidad', val)}
                   />
-                  {det.producto_id && det.cantidad > det.stock_actual && (
+                  {det.producto_id && (det.cantidad || 0) > det.stock_actual && (
                     <div className="text-red-500 text-xs leading-[14px] mt-0.5">
                       Stock: {det.stock_actual} {det.unidad_abreviatura}
                     </div>
@@ -822,7 +838,7 @@ export default function VentasPage() {
                 <Form.Item label={index === 0 ? 'P. Venta' : ''} className="!mb-0">
                   <InputNumber
                     className="w-full"
-                    value={det.precio}
+                    value={precioFinalItem(det.precio || 0)}
                     disabled
                     variant="borderless"
                     prefix="Bs."
@@ -833,7 +849,7 @@ export default function VentasPage() {
                 <Form.Item label={index === 0 ? 'Subtotal' : ''} className="!mb-0">
                   <InputNumber
                     className="w-full"
-                    value={(det.cantidad || 0) * (det.precio || 0)}
+                    value={(det.cantidad || 0) * precioFinalItem(det.precio || 0)}
                     disabled
                     variant="borderless"
                   />
@@ -852,20 +868,22 @@ export default function VentasPage() {
           </Button>
 
           <div className="text-right font-bold">
-            <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
+            {Number(descuentoPct || 0) > 0 && (
+              <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
+            )}
             {Number(impuestoPct || 0) > 0 && (
               <div className="font-normal text-sm text-blue-500">
-                IVA ({impuestoPct}%): Bs. {(subtotalCalculado * Number(impuestoPct || 0) / 100).toFixed(2)}
+                IVA ({impuestoPct}% inc.): Bs. {ivaInfoCalculado.toFixed(2)}
               </div>
             )}
             {itPct > 0 && (
               <div className="font-normal text-sm text-orange-500">
-                IT ({itPct}%): Bs. {(subtotalCalculado * itPct / 100).toFixed(2)}
+                IT ({itPct}% inc.): Bs. {itInfoCalculado.toFixed(2)}
               </div>
             )}
             {Number(descuentoPct || 0) > 0 && (
               <div className="font-normal text-sm text-green-500">
-                Descuento ({descuentoPct}%): -Bs. {(subtotalCalculado * Number(descuentoPct || 0) / 100).toFixed(2)}
+                Descuento ({descuentoPct}%): -Bs. {descuentoCalculado.toFixed(2)}
               </div>
             )}
             <div className="text-lg mt-1">

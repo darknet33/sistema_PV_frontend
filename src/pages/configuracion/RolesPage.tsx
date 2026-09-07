@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table, Modal, Button, Transfer, Spin, Tag, Popconfirm, Space, message } from 'antd'
+import { App, Table, Modal, Button, Transfer, Spin, Tag, Popconfirm, Space } from 'antd'
 import { PlusOutlined, SecurityScanOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
@@ -15,6 +15,7 @@ const fields: CrudField[] = [
 ]
 
 export default function RolesPage() {
+  const { message } = App.useApp()
   const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete } =
     useCrud<Rol>(rolService)
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Card, DatePicker, Button, Space, Row, Col, Table, Statistic, Empty, Tag, message, Spin, Descriptions, Image as AntImage } from 'antd'
+import { App, Card, DatePicker, Button, Space, Row, Col, Table, Statistic, Empty, Tag, Spin, Descriptions, Image as AntImage } from 'antd'
 import { FilePdfOutlined, SearchOutlined, SwapOutlined, PictureOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
@@ -15,6 +15,7 @@ import type { Producto } from '../../types/producto'
 const { RangePicker } = DatePicker
 
 export default function KardexPage() {
+  const { message } = App.useApp()
   const { openPdf, previewModal } = usePdfPreview()
   const [producto, setProducto] = useState<Producto | null>(null)
   const [data, setData] = useState<KardexResponse | null>(null)

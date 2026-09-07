@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Table, Button, Popconfirm, Space, message } from 'antd'
+import { App, Table, Button, Popconfirm, Space } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
@@ -12,6 +12,7 @@ import rolService from '../../services/rolService'
 import type { Usuario, Rol } from '../../types/configuracion'
 
 export default function UsuariosPage() {
+  const { message } = App.useApp()
   const [roles, setRoles] = useState<Rol[]>([])
   const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete } =
     useCrud<Usuario>(usuarioService)

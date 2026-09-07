@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import type { MenuProps } from 'antd'
 import {
@@ -79,19 +79,37 @@ function App() {
   const token = useAuthStore((state) => state.token)
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const modulos = useAuthStore((state) => state.modulos)
+  const rehydrated = useAuthStore((state) => state.rehydrated)
   const logout = useAuthStore((state) => state.logout)
-
-  const [checking, setChecking] = useState(true)
-
-  useEffect(() => {
-    if (token && isTokenExpired(token)) {
-      logout()
-    }
-    setChecking(false)
-  }, [])
 
   const hasModules = modulos.length > 0
   const validSession = isAuthenticated && token && hasModules
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const current = useAuthStore.getState()
+      if (current.token && isTokenExpired(current.token)) {
+        current.logout()
+        if (window.location.pathname !== '/session-expired') {
+          window.location.assign('/session-expired')
+        }
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated && (!token || !hasModules)) {
+      logout()
+    }
+  }, [isAuthenticated, token, hasModules, logout])
+
+  useEffect(() => {
+    if (!rehydrated) {
+      const t = setTimeout(() => useAuthStore.setState({ rehydrated: true }), 800)
+      return () => clearTimeout(t)
+    }
+  }, [rehydrated])
 
   const moduloNombres = new Set(modulos.map((m) => m.nombre))
   const hasModule = (name: string) => moduloNombres.has(name)
@@ -155,45 +173,53 @@ function App() {
   const moduloPaths = new Set(modulos.map((m) => MODULE_ROUTE_MAP[m.nombre]).filter(Boolean))
   const hasAccess = (path: string) => moduloPaths.has(path)
 
-  if (checking) return null
-
-  if (isAuthenticated && (!token || !hasModules)) {
-    logout()
-    return <Navigate to="/login" />
-  }
-
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/productos" element={<ProductosLandingPage />} />
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/dashboard" />} />
       <Route path="/session-expired" element={<SessionExpiredPage />} />
-      <Route path="/dashboard" element={validSession ? <AppLayout menuItems={menuItems}><Outlet /></AppLayout> : <Navigate to="/login" />}>
+      <Route
+        path="/dashboard"
+        element={
+          !rehydrated ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+              Cargando...
+            </div>
+          ) : validSession ? (
+            <AppLayout menuItems={menuItems}>
+              <Outlet />
+            </AppLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      >
         <Route index element={<InicioPage />} />
 
-        {hasAccess('/dashboard/productos/lista') && <Route path="productos/lista" element={<ProductosPage />} />}
-        {hasAccess('/dashboard/productos/categorias') && <Route path="productos/categorias" element={<CategoriasPage />} />}
-        {hasAccess('/dashboard/productos/unidades') && <Route path="productos/unidades" element={<UnidadesPage />} />}
-        {hasAccess('/dashboard/productos/categorias-unidad') && <Route path="productos/categorias-unidad" element={<CategoriasUnidadPage />} />}
-        {hasModule('Productos') && <Route path="productos/kardex" element={<KardexPage />} />}
-        {hasAccess('/dashboard/entradas/compras') && <Route path="entradas/compras" element={<ComprasPage />} />}
-        {hasAccess('/dashboard/entradas/proveedores') && <Route path="entradas/proveedores" element={<ProveedoresPage />} />}
-        {hasAccess('/dashboard/salidas/ventas') && <Route path="salidas/ventas" element={<VentasPage />} />}
-        {hasAccess('/dashboard/cotizaciones') && <Route path="cotizaciones" element={<CotizacionesPage />} />}
-        {hasAccess('/dashboard/salidas/clientes') && <Route path="salidas/clientes" element={<ClientesPage />} />}
+        <Route path="productos/lista" element={hasAccess('/dashboard/productos/lista') ? <ProductosPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="productos/categorias" element={hasAccess('/dashboard/productos/categorias') ? <CategoriasPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="productos/unidades" element={hasAccess('/dashboard/productos/unidades') ? <UnidadesPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="productos/categorias-unidad" element={hasAccess('/dashboard/productos/categorias-unidad') ? <CategoriasUnidadPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="productos/kardex" element={hasModule('Productos') ? <KardexPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="entradas/compras" element={hasAccess('/dashboard/entradas/compras') ? <ComprasPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="entradas/proveedores" element={hasAccess('/dashboard/entradas/proveedores') ? <ProveedoresPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="salidas/ventas" element={hasAccess('/dashboard/salidas/ventas') ? <VentasPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="cotizaciones" element={hasAccess('/dashboard/cotizaciones') ? <CotizacionesPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="salidas/clientes" element={hasAccess('/dashboard/salidas/clientes') ? <ClientesPage /> : <Navigate to="/dashboard" replace />} />
 
-        {hasAccess('/dashboard/gastos') && <Route path="gastos" element={<GastosPage />} />}
-        {hasAccess('/dashboard/reportes') && <Route path="reportes" element={<ReportesPage />} />}
+        <Route path="gastos" element={hasAccess('/dashboard/gastos') ? <GastosPage /> : <Navigate to="/dashboard" replace />} />
+        <Route path="reportes" element={hasAccess('/dashboard/reportes') ? <ReportesPage /> : <Navigate to="/dashboard" replace />} />
 
         <Route path="perfil" element={<PerfilPage />} />
 
         <Route path="configuracion" element={<ConfiguracionesPage />}>
-          {hasAccess('/dashboard/configuracion/empresa') && <Route path="empresa" element={<EmpresaPage />} />}
-          {hasAccess('/dashboard/configuracion/usuarios') && <Route path="usuarios" element={<UsuariosPage />} />}
-          {hasAccess('/dashboard/configuracion/roles') && <Route path="roles" element={<RolesPage />} />}
-          {hasAccess('/dashboard/configuracion/modulos') && <Route path="modulos" element={<ModulosPage />} />}
-          {hasAccess('/dashboard/configuracion/comprobantes') && <Route path="comprobantes" element={<ComprobantesPage />} />}
-          {hasAccess('/dashboard/configuracion/estados') && <Route path="estados" element={<EstadosPage />} />}
+          <Route path="empresa" element={hasAccess('/dashboard/configuracion/empresa') ? <EmpresaPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="usuarios" element={hasAccess('/dashboard/configuracion/usuarios') ? <UsuariosPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="roles" element={hasAccess('/dashboard/configuracion/roles') ? <RolesPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="modulos" element={hasAccess('/dashboard/configuracion/modulos') ? <ModulosPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="comprobantes" element={hasAccess('/dashboard/configuracion/comprobantes') ? <ComprobantesPage /> : <Navigate to="/dashboard" replace />} />
+          <Route path="estados" element={hasAccess('/dashboard/configuracion/estados') ? <EstadosPage /> : <Navigate to="/dashboard" replace />} />
         </Route>
       </Route>
     </Routes>

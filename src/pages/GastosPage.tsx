@@ -6,7 +6,7 @@ import {
   InputNumber,
   DatePicker,
   Popconfirm,
-  message,
+  App,
   Tag,
   Input,
   Select,
@@ -57,6 +57,7 @@ const { useBreakpoint } = Grid
 export default function GastosPage() {
   const screens = useBreakpoint()
   const isMobile = !screens.md
+  const { message } = App.useApp()
   const { openPdf, previewModal } = usePdfPreview()
 
   const [gastos, setGastos] = useState<Gasto[]>([])
@@ -417,7 +418,7 @@ export default function GastosPage() {
       {/* KPI Cards */}
       <Row gutter={[16, 16]} className="mb-4">
         <Col xs={24} sm={8}>
-          <Card bordered={false} className="shadow-sm">
+          <Card variant="borderless" className="shadow-sm">
             <Statistic
               title="Total Gastos (Activos)"
               value={metrics.totalMonto}
@@ -429,7 +430,7 @@ export default function GastosPage() {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card bordered={false} className="shadow-sm">
+          <Card variant="borderless" className="shadow-sm">
             <Statistic
               title="Gastos Registrados"
               value={metrics.cantidadActivos}
@@ -440,7 +441,7 @@ export default function GastosPage() {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card bordered={false} className="shadow-sm">
+          <Card variant="borderless" className="shadow-sm">
             <Statistic
               title="Gastos Anulados"
               value={metrics.totalAnuladosMonto}

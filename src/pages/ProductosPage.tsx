@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Button, Modal, Form, Input, InputNumber, Popconfirm, message, Tag, Spin, Switch, Grid, Upload, Image as AntImage, Select, Radio } from 'antd'
+import { App, Button, Modal, Form, Input, InputNumber, Popconfirm, Tag, Spin, Switch, Grid, Upload, Image as AntImage, Select, Radio } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined, UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -27,6 +27,7 @@ interface UnidadRow {
 }
 
 export default function ProductosPage() {
+  const { message } = App.useApp()
   const [productos, setProductos] = useState<Producto[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [allUnidades, setAllUnidades] = useState<UnidadMedida[]>([])

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Form, Input, Button, Upload, ColorPicker, Grid, message } from 'antd'
+import { App, Card, Form, Input, Button, Upload, ColorPicker, Grid } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd/es/upload/interface'
 import PageHeader from '../../components/PageHeader'
@@ -50,6 +50,7 @@ function ImagenUpload({
 }
 
 export default function EmpresaPage() {
+  const { message } = App.useApp()
   const [form] = Form.useForm()
   const screens = useBreakpoint()
   const isMobile = !screens.md

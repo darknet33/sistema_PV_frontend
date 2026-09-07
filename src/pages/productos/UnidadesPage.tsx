@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Button, Modal, Form, Input, Popconfirm, message, Tag, Spin, Grid } from 'antd'
+import { App, Button, Modal, Form, Input, Popconfirm, Tag, Spin, Grid } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { UnidadMedida } from '../../types/unidadMedida'
@@ -14,6 +14,7 @@ import SubCrudSelect from '../../components/SubCrudSelect'
 const { useBreakpoint } = Grid
 
 export default function UnidadesPage() {
+  const { message } = App.useApp()
   const [unidades, setUnidades] = useState<UnidadMedida[]>([])
   const [categorias, setCategorias] = useState<CategoriaUnidad[]>([])
   const [loading, setLoading] = useState(false)
