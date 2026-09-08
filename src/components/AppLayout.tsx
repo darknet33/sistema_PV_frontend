@@ -65,8 +65,8 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
   ]
 
   const siderContent = (
-    <>
-      <div className="h-16 flex items-center justify-center text-white font-bold text-xl overflow-hidden px-2">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="h-16 flex items-center justify-center text-white font-bold text-xl overflow-hidden px-2 shrink-0">
         {empresa?.logo ? (
           <img src={resolveUrl(empresa.logo)} alt="Logo" className="max-h-12 max-w-full object-contain" />
         ) : (
@@ -80,13 +80,14 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
         defaultOpenKeys={[]}
         items={menuItems}
         onClick={({ key }) => handleMenuClick(key)}
+        className="flex-1 overflow-y-auto"
         style={{ backgroundColor: secondary }}
       />
-    </>
+    </div>
   )
 
   return (
-    <Layout className="min-h-screen">
+    <Layout className="min-h-screen md:h-screen md:overflow-hidden">
       <style>{`
         .ant-menu-dark .ant-menu-item:not(.ant-menu-item-selected) { color: ${primary} !important; }
         .ant-menu-dark .ant-menu-item:not(.ant-menu-item-selected) .ant-menu-item-icon { color: ${primary} !important; }
@@ -122,8 +123,8 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
           {siderContent}
         </Sider>
       )}
-      <Layout>
-        <Header className="bg-white px-4 flex items-center justify-between">
+      <Layout className="md:min-h-0">
+        <Header className="bg-white px-4 flex items-center justify-between shrink-0">
           <Button
             type="text"
             icon={isMobile ? <MenuUnfoldOutlined /> : (collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />)}
