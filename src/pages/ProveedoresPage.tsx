@@ -1,8 +1,10 @@
-import { App, Table, Switch, Button, Popconfirm, Space } from 'antd'
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { App, Switch, Button, Popconfirm, Space, Grid } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../components/CrudModal'
 import type { CrudField } from '../components/CrudModal'
+import PageHeader from '../components/PageHeader'
+import ResponsiveTable from '../components/ResponsiveTable'
 import { useCrud } from '../hooks/useCrud'
 import type { Proveedor } from '../types/proveedor'
 import { getProveedores, createProveedor, updateProveedor, deleteProveedor, toggleProveedorActivo } from '../services/proveedorService'
@@ -18,6 +20,8 @@ const fields: CrudField[] = [
 
 export default function ProveedoresPage() {
   const { message } = App.useApp()
+  const screens = Grid.useBreakpoint()
+  const isMobile = !screens.md
   const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete, loadData } =
     useCrud<Proveedor>({
       getAll: getProveedores,
@@ -52,22 +56,48 @@ export default function ProveedoresPage() {
     },
     {
       title: 'Acciones',
+      key: 'acciones',
       width: 120,
       render: (_: unknown, record: Proveedor) => (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openModal(record)} />
+          <Button size={isMobile ? 'middle' : 'small'} icon={<EditOutlined />} onClick={() => openModal(record)} />
           <Popconfirm title="¿Eliminar proveedor?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
+            <Button size={isMobile ? 'middle' : 'small'} danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
     },
   ]
 
+  const fabVisible = isMobile && !modalVisible
+
   return (
-    <div>
-      <h2 style={{ marginBottom: 16 }}>Gestión de Proveedores</h2>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} scroll={{ x: 'max-content' }} pagination={{ pageSize: 10 }} />
+    <div className={fabVisible ? 'pb-16' : ''}>
+      <PageHeader title="Proveedores">
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()} className={isMobile ? 'hidden' : ''}>
+          Nuevo Proveedor
+        </Button>
+      </PageHeader>
+
+      <ResponsiveTable
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
+
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={() => openModal()}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
+
       <CrudModal
         visible={modalVisible}
         onCancel={closeModal}

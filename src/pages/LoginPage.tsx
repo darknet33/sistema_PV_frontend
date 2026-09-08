@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { App, Alert, Button, Card, Form, Input, Spin, notification, Typography } from 'antd'
+import { App, Alert, Button, Card, Form, Grid, Input, Spin, notification, Typography } from 'antd'
 import {
   LockOutlined,
   UserOutlined,
@@ -16,6 +16,7 @@ import { checkUsers } from '../services/authService'
 import type { LoginRequest, SetupAdminRequest } from '../types/auth'
 
 const { Text } = Typography
+const { useBreakpoint } = Grid
 
 export default function LoginPage() {
   const { message } = App.useApp()
@@ -28,6 +29,8 @@ export default function LoginPage() {
   const empresa = useEmpresaStore((state) => state.empresa)
   const { primary } = useEmpresaColors()
   const navigate = useNavigate()
+  const screens = useBreakpoint()
+  const isMobile = !screens.md
 
   useEffect(() => {
     loadEmpresa()
@@ -107,6 +110,7 @@ export default function LoginPage() {
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         position: 'relative',
         overflow: 'hidden',
+        padding: isMobile ? '72px 16px 32px' : '40px 24px',
       }}
     >
       <style>{`
@@ -121,24 +125,24 @@ export default function LoginPage() {
       <div
         style={{
           position: 'absolute',
-          width: 400,
-          height: 400,
+          width: isMobile ? 220 : 400,
+          height: isMobile ? 220 : 400,
           borderRadius: '50%',
           background: `${primary}18`,
-          top: -120,
-          right: -100,
+          top: isMobile ? -70 : -120,
+          right: isMobile ? -60 : -100,
           pointerEvents: 'none',
         }}
       />
       <div
         style={{
           position: 'absolute',
-          width: 300,
-          height: 300,
+          width: isMobile ? 180 : 300,
+          height: isMobile ? 180 : 300,
           borderRadius: '50%',
           background: `${primary}10`,
-          bottom: -80,
-          left: -80,
+          bottom: isMobile ? -50 : -80,
+          left: isMobile ? -60 : -80,
           pointerEvents: 'none',
         }}
       />
@@ -150,11 +154,12 @@ export default function LoginPage() {
         onClick={() => navigate('/')}
         style={{
           position: 'absolute',
-          top: 24,
-          left: 24,
+          top: isMobile ? 16 : 24,
+          left: isMobile ? 16 : 24,
           color: 'rgba(255,255,255,0.7)',
           fontSize: 15,
-          height: 40,
+          height: isMobile ? 36 : 40,
+          padding: isMobile ? '0 12px' : '0 16px',
           borderRadius: 8,
           display: 'flex',
           alignItems: 'center',
@@ -179,7 +184,8 @@ export default function LoginPage() {
 
       <Card
         style={{
-          width: 420,
+          width: '100%',
+          maxWidth: 420,
           borderRadius: 16,
           border: '1px solid rgba(255,255,255,0.1)',
           background: 'rgba(255,255,255,0.05)',
@@ -187,7 +193,7 @@ export default function LoginPage() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
         }}
         styles={{
-          body: { padding: '40px 36px 32px' },
+          body: { padding: isMobile ? '32px 20px 24px' : '40px 36px 32px' },
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
@@ -259,7 +265,7 @@ export default function LoginPage() {
               }
             />
             <Form name="setup-admin" layout="vertical" onFinish={onSetupFinish} requiredMark={false}>
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 12, flexDirection: isMobile ? 'column' : 'row' }}>
                 <Form.Item
                   name="nombres"
                   rules={[{ required: true, message: 'Ingrese sus nombres' }]}

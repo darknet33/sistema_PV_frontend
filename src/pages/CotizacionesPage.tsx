@@ -4,6 +4,7 @@ import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
   CheckOutlined, ShoppingCartOutlined, ProfileOutlined,
+  CheckCircleOutlined, CloseCircleOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -25,16 +26,15 @@ import type { Categoria } from '../types/categoria'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import ProductoDetalleList from '../components/ProductoDetalleList'
-import ResumenTotales from '../components/ResumenTotales'
 import WizardProductoSelector, { type SeleccionProducto } from '../components/WizardProductoSelector'
 import SubCrudSelect from '../components/SubCrudSelect'
 
 const { useBreakpoint } = Grid
 
+const FORMA_PAGO_OPTIONS = ['Transferencia SIGEP', 'Cheque', 'Al contado']
+
 const IVA_RATE = 13
 const IT_RATE = 3
-
-const FORMA_PAGO_OPTIONS = ['Transferencia SIGEP', 'Cheque', 'Al contado']
 
 interface UnidadDisponible {
   id: number
@@ -70,14 +70,10 @@ const estadoColor: Record<string, string> = {
   Vencido: 'red',
 }
 
-function calcularPrecioVenta(costo: number, pct: number, conFactura: boolean = false): number {
+function calcularPrecioVenta(costo: number, pct: number): number {
   const c = Number(costo || 0)
   const p = Number(pct || 0)
-  let precio = c + (c * p / 100)
-  if (conFactura) {
-    precio = precio * 1.13 * 1.03
-  }
-  return Math.round(precio * 100) / 100
+  return Math.round((c + (c * p / 100)) * 100) / 100
 }
 
 export default function CotizacionesPage() {
@@ -101,6 +97,7 @@ export default function CotizacionesPage() {
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
   const [seleccionPaso0, setSeleccionPaso0] = useState<Record<number, SeleccionProducto>>({})
   const [incluirImagenes, setIncluirImagenes] = useState(false)
+  const [conFactura, setConFactura] = useState(false)
 
   const [filterFecha, setFilterFecha] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
   const [searchClienteText, setSearchClienteText] = useState('')
@@ -131,8 +128,15 @@ export default function CotizacionesPage() {
   const watchedFecha = Form.useWatch('fecha', form)
   const watchedValidez = Form.useWatch('validez_dias', form)
   const watchedDescuento = Form.useWatch('descuento', form)
-  const [conFactura, setConFactura] = useState(false)
   const descuentoPct = Number(watchedDescuento || 0)
+
+  const impuestoPct = conFactura ? IVA_RATE : 0
+  const itPct = conFactura ? IT_RATE : 0
+
+  const precioFinalItem = (neto: number) =>
+    conFactura
+      ? Math.round((neto || 0) * 1.13 * 1.03 * 100) / 100
+      : (neto || 0)
 
   const loadCotizaciones = useCallback(async () => {
     setLoading(true)
@@ -236,8 +240,8 @@ export default function CotizacionesPage() {
     setEditingCotizacion(null)
     setDetalles([])
     setSeleccionPaso0({})
-    setConFactura(false)
     setIncluirImagenes(false)
+    setConFactura(false)
     setWizardCurrent(0)
     form.resetFields()
     form.setFieldsValue({
@@ -251,7 +255,6 @@ export default function CotizacionesPage() {
   const openEditModal = async (cot: Cotizacion) => {
     await loadProductos()
     setEditingCotizacion(cot)
-    setConFactura(!!cot.con_factura)
     form.setFieldsValue({
       fecha: dayjs(cot.fecha),
       cliente_id: cot.cliente_id,
@@ -295,7 +298,7 @@ export default function CotizacionesPage() {
           costo: costo,
           costo_base: costoBase,
           utilidad_pct: Number(d.utilidad_pct || 0),
-          precio_venta: calcularPrecioVenta(costo, Number(d.utilidad_pct || 0), !!cot.con_factura),
+          precio_venta: calcularPrecioVenta(costo, Number(d.utilidad_pct || 0)),
           stock_actual: Number(d.stock_actual || 0),
           unidades_disponibles: unidadesDisponibles,
         }
@@ -308,6 +311,7 @@ export default function CotizacionesPage() {
       }, {})
     )
     setIncluirImagenes(!!cot.incluir_imagenes)
+    setConFactura(!!cot.con_factura)
     setWizardCurrent((cot.detalles?.length ?? 0) > 0 ? 1 : 0)
     setModalVisible(true)
   }
@@ -354,7 +358,18 @@ export default function CotizacionesPage() {
       setDetalles([])
       loadCotizaciones()
     } catch (error: any) {
-      message.error(error.response?.data?.detail || 'Error al guardar')
+      if (error.errorFields) {
+        const nombres = error.errorFields.map((f: any) => {
+          const map: Record<string, string> = {
+            fecha: 'Fecha', cliente_id: 'Cliente', proveedor_id: 'Proveedor',
+            comprobante_id: 'Comprobante', estado_id: 'Estado', validez_dias: 'Validez (días)',
+          }
+          return map[f.name] || f.name
+        })
+        message.error(`Complete los campos obligatorios: ${nombres.join(', ')}`)
+      } else {
+        message.error(error.response?.data?.detail || 'Error al guardar')
+      }
     } finally {
       setSaving(false)
     }
@@ -404,7 +419,7 @@ export default function CotizacionesPage() {
             es_principal: esPrincipal,
             factor_conversion: factor,
             costo: nuevoCosto,
-            precio_venta: calcularPrecioVenta(nuevoCosto, existing.utilidad_pct, conFactura),
+            precio_venta: calcularPrecioVenta(nuevoCosto, existing.utilidad_pct),
           }
         }
         const producto = productos.find((p) => p.id === pid)
@@ -436,7 +451,7 @@ export default function CotizacionesPage() {
           costo,
           costo_base: costoBase,
           utilidad_pct,
-          precio_venta: calcularPrecioVenta(costo, utilidad_pct, conFactura),
+          precio_venta: calcularPrecioVenta(costo, utilidad_pct),
           stock_actual: Number((producto as any).stock_actual || 0),
           unidades_disponibles: unidadesDisponibles,
         }
@@ -457,7 +472,7 @@ export default function CotizacionesPage() {
   }
 
   const detallesValidos = useMemo(() => detalles.filter((d) => d.producto_id != null), [detalles])
-  const wizardSteps = [{ title: 'Productos' }, { title: 'Precios' }, { title: 'Encabezado' }]
+  const wizardSteps = [{ title: 'Productos' }, { title: 'Precios' }, { title: 'Datos' }]
 
   const detalleImagen = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.imagen || null
   const detalleMarca = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.marca
@@ -482,6 +497,7 @@ export default function CotizacionesPage() {
     setDetalles([])
     setSeleccionPaso0({})
     setIncluirImagenes(false)
+    setConFactura(false)
   }
 
   const updateDetalle = (key: string, field: keyof DetalleLine, value: any) => {
@@ -492,9 +508,9 @@ export default function CotizacionesPage() {
         // El costo editado es de la línea en su unidad -> costo_base = costo / factor
         const f = updated.factor_conversion || 1
         updated.costo_base = f > 0 ? (Number(value || 0) / f) : Number(value || 0)
-        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct, conFactura)
+        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
       } else if (field === 'utilidad_pct') {
-        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct, conFactura)
+        updated.precio_venta = calcularPrecioVenta(updated.costo, updated.utilidad_pct)
       }
       return updated
     }))
@@ -505,24 +521,17 @@ export default function CotizacionesPage() {
     return dayjs(watchedFecha).add(Number(watchedValidez || 0), 'day')
   }, [watchedFecha, watchedValidez])
 
-  useEffect(() => {
-    setDetalles((prev) => prev.map((d) => ({
-      ...d,
-      precio_venta: calcularPrecioVenta(d.costo, d.utilidad_pct, conFactura),
-    })))
-  }, [conFactura])
-
   const subtotalCalculado = useMemo(() => {
-    return detalles.reduce((sum, d) => sum + (d.cantidad || 0) * (d.precio_venta || 0), 0)
-  }, [detalles])
+    return detalles.reduce((sum, d) => sum + (d.cantidad || 0) * precioFinalItem(d.precio_venta || 0), 0)
+  }, [detalles, impuestoPct])
 
-  const ivaCalculado = useMemo(() => {
-    return conFactura ? Math.round(subtotalCalculado * IVA_RATE) / 100 : 0
-  }, [subtotalCalculado, conFactura])
+  const ivaInfoCalculado = useMemo(() =>
+    impuestoPct > 0 ? Math.round(subtotalCalculado * 0.13 * 100) / 100 : 0,
+  [subtotalCalculado, impuestoPct])
 
-  const itCalculado = useMemo(() => {
-    return conFactura ? Math.round(subtotalCalculado * IT_RATE) / 100 : 0
-  }, [subtotalCalculado, conFactura])
+  const itInfoCalculado = useMemo(() =>
+    itPct > 0 ? Math.round(subtotalCalculado * 0.03 * 100) / 100 : 0,
+  [subtotalCalculado, itPct])
 
   const descuentoCalculado = useMemo(() => {
     return Math.round(subtotalCalculado * descuentoPct) / 100
@@ -748,24 +757,67 @@ export default function CotizacionesPage() {
         width={860}
         className="responsive-modal"
         footer={
-          <div className="flex justify-between gap-2">
-            <Button onClick={handleCloseModal}>Cancelar</Button>
-            <div className="flex gap-2">
-              {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
-              {wizardCurrent < 2 ? (
-                <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
-                  Siguiente
-                </Button>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5">
+              {wizardCurrent === 0 ? (
+                <Switch
+                  checkedChildren="Incluir imagen"
+                  unCheckedChildren="Sin imagen"
+                  checked={incluirImagenes}
+                  onChange={setIncluirImagenes}
+                />
+              ) : wizardCurrent === 1 ? (
+                <>
+                  {incluirImagenes
+                    ? <Tag color="green" icon={<CheckCircleOutlined />}>Incluir imagen</Tag>
+                    : <Tag color="red" icon={<CloseCircleOutlined />}>Sin imagen</Tag>}
+                  <Switch
+                    checkedChildren="Con factura"
+                    unCheckedChildren="Sin factura"
+                    checked={conFactura}
+                    onChange={setConFactura}
+                  />
+                </>
               ) : (
-                <Button type="primary" loading={saving} onClick={handleSave}>
-                  Guardar
-                </Button>
+                <>
+                  {incluirImagenes
+                    ? <Tag color="green" icon={<CheckCircleOutlined />}>Incluir imagen</Tag>
+                    : <Tag color="red" icon={<CloseCircleOutlined />}>Sin imagen</Tag>}
+                  {conFactura
+                    ? <Tag color="green" icon={<CheckCircleOutlined />}>Con factura</Tag>
+                    : <Tag color="red" icon={<CloseCircleOutlined />}>Sin factura</Tag>}
+                  {descuentoPct > 0 && <Tag color="orange">Descuento: {descuentoPct}%</Tag>}
+                </>
               )}
+            </div>
+            <div className="flex flex-col items-center gap-2 md:items-end">
+              {wizardCurrent > 0 && (
+                <div className="text-center md:text-right leading-tight">
+                  <div className="font-bold text-base">Total: Bs. {totalCalculado.toFixed(2)}</div>
+                  {conFactura && (
+                    <div className="text-xs text-gray-500">
+                      IVA (13% inc.): Bs. {ivaInfoCalculado.toFixed(2)} · IT (3% inc.): Bs. {itInfoCalculado.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-2 justify-center">
+                {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
+                {wizardCurrent < 2 ? (
+                  <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
+                    Siguiente
+                  </Button>
+                ) : (
+                  <Button type="primary" loading={saving} onClick={handleSave}>
+                    Finalizar
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         }
       >
-        <Steps size="small" current={wizardCurrent} items={wizardSteps} className="mb-4" />
+        <Steps size="small" direction="horizontal" responsive={false} current={wizardCurrent} items={wizardSteps} className="mb-4 steps-wizard" />
 
         {wizardCurrent === 0 && (
           <WizardProductoSelector
@@ -774,20 +826,23 @@ export default function CotizacionesPage() {
             seleccion={seleccionPaso0}
             onSeleccionChange={setSeleccionPaso0}
             showUnidad
-            showIncluirImagenes
-            incluirImagenes={incluirImagenes}
-            onIncluirImagenesChange={(val) => {
-              setIncluirImagenes(val)
-              form.setFieldValue('incluir_imagenes', val)
-            }}
           />
         )}
 
         {wizardCurrent === 1 && (
           <Form form={form} layout="vertical">
             <div className="flex justify-end items-center mb-2 gap-2">
-              <span>Con factura</span>
-              <Switch checked={conFactura} onChange={setConFactura} />
+              <Space size="small" align="center">
+                <span className="text-sm">Descuento %:</span>
+                <InputNumber
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  className="w-24"
+                  value={descuentoPct}
+                  onChange={(v) => form.setFieldValue('descuento', v ?? 0)}
+                />
+              </Space>
             </div>
             <ProductoDetalleList<DetalleLine>
               items={detallesValidos}
@@ -795,9 +850,10 @@ export default function CotizacionesPage() {
               getMarca={detalleMarca}
               getProcedencia={detalleProcedencia}
               getUnidad={(item) => item.unidad_nombre ? `${item.unidad_nombre} (${item.unidad_abreviatura || '-'})` : undefined}
-              getPrecio={(item) => item.precio_venta}
-              getSubtotal={(item) => (item.cantidad || 0) * (item.precio_venta || 0)}
+              getPrecio={(item) => precioFinalItem(item.precio_venta || 0)}
+              getSubtotal={(item) => (item.cantidad || 0) * precioFinalItem(item.precio_venta || 0)}
               onRemove={removeDetalleRow}
+              quantityReadOnly
               quantityMin={0.01}
               quantityStep={0.01}
               renderExtra={(item) => (
@@ -820,15 +876,6 @@ export default function CotizacionesPage() {
                   )}
                 </div>
               )}
-            />
-            <ResumenTotales
-              conFactura={conFactura}
-              subtotal={subtotalCalculado}
-              iva={ivaCalculado}
-              it={itCalculado}
-              descuentoPct={descuentoPct}
-              descuento={descuentoCalculado}
-              total={totalCalculado}
             />
           </Form>
         )}
@@ -874,18 +921,13 @@ export default function CotizacionesPage() {
           <Form.Item name="modalidad_pago" label="Modalidad de pago">
             <Input placeholder="Ej. 50% adelanto, 50% contra entrega" />
           </Form.Item>
-          <div className="flex flex-wrap gap-3">
-            <Form.Item name="forma_pago" label="Forma de pago" className="flex-1 min-w-[200px]">
+          <Form.Item name="forma_pago" label="Forma de pago" className="flex-1 min-w-[200px]">
               <Select
                 allowClear
                 placeholder="Seleccione la forma de pago"
                 options={FORMA_PAGO_OPTIONS.map((f) => ({ value: f, label: f }))}
               />
             </Form.Item>
-            <Form.Item name="descuento" label="Descuento %" className="flex-1 min-w-[140px]">
-              <InputNumber min={0} max={100} step={0.01} className="w-full" />
-            </Form.Item>
-          </div>
           <Form.Item name="terminos_condiciones" label="Términos y condiciones">
             <Input.TextArea rows={3} placeholder="Términos y condiciones de la oferta" />
           </Form.Item>
@@ -898,24 +940,13 @@ export default function CotizacionesPage() {
               getMarca={detalleMarca}
               getProcedencia={detalleProcedencia}
               getUnidad={(item) => item.unidad_nombre ? `${item.unidad_nombre} (${item.unidad_abreviatura || '-'})` : undefined}
-              getPrecio={(item) => item.precio_venta}
-              getSubtotal={(item) => (item.cantidad || 0) * (item.precio_venta || 0)}
+              getPrecio={(item) => precioFinalItem(item.precio_venta || 0)}
+              getSubtotal={(item) => (item.cantidad || 0) * precioFinalItem(item.precio_venta || 0)}
               quantityMin={0.01}
               quantityStep={0.01}
               readOnly
             />
           </div>
-
-          <ResumenTotales
-            conFactura={conFactura}
-            subtotal={subtotalCalculado}
-            iva={ivaCalculado}
-            it={itCalculado}
-            descuentoPct={descuentoPct}
-            descuento={descuentoCalculado}
-            total={totalCalculado}
-            extra={conFactura ? <Tag color="orange">IVA {IVA_RATE}% + IT {IT_RATE}%</Tag> : undefined}
-          />
           </Form>
         )}
       </Modal>

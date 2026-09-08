@@ -1,8 +1,10 @@
-import { Button, Image as AntImage } from 'antd'
+import { Button, Image as AntImage, Grid } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 import StepperInput from './StepperInput'
 import { resolveUrl } from '../utils/resolveUrl'
+
+const { useBreakpoint } = Grid
 
 export interface DetalleItem {
   key: string
@@ -26,6 +28,7 @@ interface ProductoDetalleListProps<T extends DetalleItem> {
   onRemove?: (key: string) => void
   renderExtra?: (item: T) => ReactNode
   readOnly?: boolean
+  quantityReadOnly?: boolean
   quantityStep?: number
   quantityMin?: number
 }
@@ -45,9 +48,13 @@ export default function ProductoDetalleList<T extends DetalleItem>({
   onRemove,
   renderExtra,
   readOnly = false,
+  quantityReadOnly = false,
   quantityStep = 1,
   quantityMin = 1,
 }: ProductoDetalleListProps<T>) {
+  const screens = useBreakpoint()
+  const isMobile = !screens.md
+
   if (items.length === 0) {
     return <div className="text-center text-gray-400 py-6">Sin productos añadidos todavía. Vuelva al paso anterior para seleccionar.</div>
   }
@@ -62,35 +69,86 @@ export default function ProductoDetalleList<T extends DetalleItem>({
         const precio = getPrecio?.(item)
         const subtotal = getSubtotal?.(item)
 
+        const imagenEl = imagen ? (
+          <AntImage
+            src={resolveUrl(imagen)}
+            width={44}
+            height={44}
+            style={{ objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+          />
+        ) : (
+          <div className="w-[44px] h-[44px] rounded-md bg-gray-100 flex items-center justify-center text-gray-300 select-none shrink-0">
+            -
+          </div>
+        )
+
+        const nombreEl = (
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium leading-tight">
+              {item.producto_codigo && (
+                <span className="text-gray-400 mr-1">[{item.producto_codigo}]</span>
+              )}
+              {item.producto_categoria && (
+                <span className="text-gray-400 mr-1">{item.producto_categoria} -</span>
+              )}
+              <span className="break-words">{item.producto_nombre}</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5">
+              {[marca, procedencia, unidad].filter(Boolean).join(' · ') || '-'}
+            </div>
+          </div>
+        )
+
+        if (isMobile) {
+          return (
+            <div key={item.key} className="p-3 mb-2 border border-gray-100 rounded-lg bg-white">
+              <div className="flex items-start gap-2">
+                {imagenEl}
+                {nombreEl}
+                {!readOnly && onRemove && (
+                  <Button danger icon={<DeleteOutlined />} size="small" onClick={() => onRemove(item.key)} />
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-x-2 mt-2.5 items-center">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400">P. unit</div>
+                  <div className="text-sm font-medium whitespace-nowrap">
+                    {typeof precio === 'number' ? formatPrecio(precio) : '-'}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400">Cant.</div>
+                  {readOnly || quantityReadOnly ? (
+                    <div className="text-sm font-medium">{item.cantidad ?? '-'}</div>
+                  ) : (
+                    <StepperInput
+                      value={item.cantidad}
+                      onChange={onCantidadChange ? (val) => onCantidadChange(item.key, val) : undefined}
+                      min={quantityMin}
+                      step={quantityStep}
+                      disabled={!onCantidadChange}
+                    />
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400">Subtotal</div>
+                  <div className="text-sm font-semibold whitespace-nowrap">
+                    {typeof subtotal === 'number' ? formatPrecio(subtotal) : '-'}
+                  </div>
+                </div>
+              </div>
+
+              {!readOnly && renderExtra && <div className="mt-2.5">{renderExtra(item)}</div>}
+            </div>
+          )
+        }
+
         return (
           <div key={item.key} className="flex flex-wrap gap-3 items-center p-3 mb-2 border border-gray-100 rounded-lg bg-white">
-            {imagen ? (
-              <AntImage
-                src={resolveUrl(imagen)}
-                width={44}
-                height={44}
-                style={{ objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-              />
-            ) : (
-              <div className="w-[44px] h-[44px] rounded-md bg-gray-100 flex items-center justify-center text-gray-300 select-none shrink-0">
-                -
-              </div>
-            )}
+            {imagenEl}
 
-            <div className="flex-1 min-w-[160px]">
-              <div className="text-sm font-medium leading-tight">
-                {item.producto_codigo && (
-                  <span className="text-gray-400 mr-1">[{item.producto_codigo}]</span>
-                )}
-                {item.producto_categoria && (
-                  <span className="text-gray-400 mr-1">{item.producto_categoria} -</span>
-                )}
-                {item.producto_nombre}
-              </div>
-              <div className="text-xs text-gray-400 mt-0.5">
-                {[marca, procedencia, unidad].filter(Boolean).join(' · ') || '-'}
-              </div>
-            </div>
+            {nombreEl}
 
             {precio != null && (
               <div className="text-right min-w-[90px]">
@@ -102,7 +160,7 @@ export default function ProductoDetalleList<T extends DetalleItem>({
             )}
 
             <div className="flex flex-col items-center gap-0.5">
-              {readOnly ? (
+              {readOnly || quantityReadOnly ? (
                 <div className="text-sm font-medium min-w-[48px] text-center">{item.cantidad ?? '-'}</div>
               ) : (
                 <StepperInput

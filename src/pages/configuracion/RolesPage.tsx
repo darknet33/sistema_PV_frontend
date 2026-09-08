@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { App, Table, Modal, Button, Transfer, Spin, Tag, Popconfirm, Space } from 'antd'
+import { App, Modal, Button, Transfer, Spin, Tag, Popconfirm, Space, Grid } from 'antd'
 import { PlusOutlined, SecurityScanOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
 import type { CrudField } from '../../components/CrudModal'
 import PageHeader from '../../components/PageHeader'
+import ResponsiveTable from '../../components/ResponsiveTable'
 import { useCrud } from '../../hooks/useCrud'
 import rolService from '../../services/rolService'
 import moduloService from '../../services/moduloService'
@@ -16,6 +17,8 @@ const fields: CrudField[] = [
 
 export default function RolesPage() {
   const { message } = App.useApp()
+  const screens = Grid.useBreakpoint()
+  const isMobile = !screens.md
   const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete } =
     useCrud<Rol>(rolService)
 
@@ -66,6 +69,7 @@ export default function RolesPage() {
     { title: 'Nombre', dataIndex: 'nombre' },
     {
       title: 'Acciones',
+      key: 'acciones',
       width: 240,
       render: (_: unknown, record: Rol) => (
         <Space>
@@ -81,14 +85,33 @@ export default function RolesPage() {
     },
   ]
 
+  const fabVisible = isMobile && !modalVisible
+
   return (
-    <div>
+    <div className={fabVisible ? 'pb-16' : ''}>
       <PageHeader title="Roles">
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()} className={isMobile ? 'hidden' : ''}>
           Nuevo Rol
         </Button>
       </PageHeader>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} scroll={{ x: 'max-content' }} pagination={{ pageSize: 10 }} />
+      <ResponsiveTable
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
+
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={() => openModal()}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
 
       <CrudModal
         visible={modalVisible}

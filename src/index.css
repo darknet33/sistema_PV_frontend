@@ -32,6 +32,31 @@
   .responsive-modal {
     max-width: 95vw !important;
   }
+
+  .steps-wizard .ant-steps {
+    gap: 2px;
+  }
+  .steps-wizard .ant-steps-item {
+    flex: 1 1 0 !important;
+    min-width: 0;
+    padding-left: 10px !important;
+  }
+  .steps-wizard .ant-steps-item:first-child {
+    padding-left: 0 !important;
+  }
+  .steps-wizard .ant-steps-item-title {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    padding-right: 10px !important;
+  }
+  .steps-wizard .ant-steps-item-icon {
+    font-size: 11px !important;
+    margin-inline-end: 6px !important;
+  }
 }
 
 .ant-modal-wrap {
@@ -43,8 +68,26 @@
 .ant-modal-wrap .ant-modal {
   top: 0;
   margin: 0;
-  max-height: calc(100vh - 48px);
+}
+
+.ant-modal-wrap .ant-modal .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 80vh;
+}
+
+.ant-modal-wrap .ant-modal .ant-modal-header {
+  flex-shrink: 0;
+}
+
+.ant-modal-wrap .ant-modal .ant-modal-body {
+  flex: 1;
   overflow-y: auto;
+  min-height: 0;
+}
+
+.ant-modal-wrap .ant-modal .ant-modal-footer {
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {

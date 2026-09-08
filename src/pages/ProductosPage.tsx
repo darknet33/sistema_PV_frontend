@@ -411,8 +411,10 @@ export default function ProductosPage() {
 
   const hasSelected = selectedRowKeys.length > 0
 
+  const fabVisible = isMobile && !modalVisible
+
   return (
-    <div>
+    <div className={fabVisible ? 'pb-16' : ''}>
       <PageHeader title="Gestión de Productos">
         <Popconfirm
           title="¿Eliminar todos los productos?"
@@ -428,7 +430,7 @@ export default function ProductosPage() {
         <Button icon={<ImportOutlined />} size={isMobile ? 'small' : 'middle'} loading={importing} onClick={() => fileInputRef.current?.click()}>
           Importar
         </Button>
-        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingProducto(null); form.resetFields(); setImageFileList([]); setUnidadesRows([{ key: '1', unidad_id: null, es_principal: true, factor_conversion: 1 }]); setModalVisible(true) }}>
+        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingProducto(null); form.resetFields(); setImageFileList([]); setUnidadesRows([{ key: '1', unidad_id: null, es_principal: true, factor_conversion: 1 }]); setModalVisible(true) }} className={isMobile ? 'hidden' : ''}>
           Nuevo Producto
         </Button>
       </PageHeader>
@@ -638,6 +640,16 @@ export default function ProductosPage() {
           </Form.Item>
         </Form>
       </Modal>
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={() => { setEditingProducto(null); form.resetFields(); setImageFileList([]); setUnidadesRows([{ key: '1', unidad_id: null, es_principal: true, factor_conversion: 1 }]); setModalVisible(true) }}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
     </div>
   )
 }

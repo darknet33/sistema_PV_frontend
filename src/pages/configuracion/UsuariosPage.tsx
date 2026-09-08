@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { App, Table, Button, Popconfirm, Space } from 'antd'
+import { App, Button, Popconfirm, Space, Grid } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import CrudModal from '../../components/CrudModal'
 import type { CrudField } from '../../components/CrudModal'
 import SubCrudSelect from '../../components/SubCrudSelect'
 import PageHeader from '../../components/PageHeader'
+import ResponsiveTable from '../../components/ResponsiveTable'
 import { useCrud } from '../../hooks/useCrud'
 import usuarioService from '../../services/usuarioService'
 import rolService from '../../services/rolService'
@@ -13,6 +14,8 @@ import type { Usuario, Rol } from '../../types/configuracion'
 
 export default function UsuariosPage() {
   const { message } = App.useApp()
+  const screens = Grid.useBreakpoint()
+  const isMobile = !screens.md
   const [roles, setRoles] = useState<Rol[]>([])
   const { data, loading, modalVisible, editingRecord, form, openModal, closeModal, handleSubmit, handleDelete } =
     useCrud<Usuario>(usuarioService)
@@ -75,6 +78,7 @@ export default function UsuariosPage() {
     },
     {
       title: 'Acciones',
+      key: 'acciones',
       width: 120,
       render: (_: unknown, record: Usuario) => (
         <Space>
@@ -87,14 +91,32 @@ export default function UsuariosPage() {
     },
   ]
 
+  const fabVisible = isMobile && !modalVisible
+
   return (
-    <div>
+    <div className={fabVisible ? 'pb-16' : ''}>
       <PageHeader title="Usuarios">
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()} className={isMobile ? 'hidden' : ''}>
           Nuevo Usuario
         </Button>
       </PageHeader>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} scroll={{ x: 'max-content' }} pagination={{ pageSize: 10 }} />
+      <ResponsiveTable
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={() => openModal()}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
       <CrudModal
         visible={modalVisible}
         onCancel={closeModal}

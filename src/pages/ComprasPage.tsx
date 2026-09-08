@@ -20,7 +20,6 @@ import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
 import ProductoDetalleList from '../components/ProductoDetalleList'
-import ResumenTotales from '../components/ResumenTotales'
 import WizardProductoSelector, { type SeleccionProducto } from '../components/WizardProductoSelector'
 
 const { useBreakpoint } = Grid
@@ -278,7 +277,18 @@ export default function ComprasPage() {
       setNumComprobanteAuto('')
       loadCompras()
     } catch (error: any) {
-      message.error(error.response?.data?.detail || 'Error al guardar')
+      if (error.errorFields) {
+        const nombres = error.errorFields.map((f: any) => {
+          const map: Record<string, string> = {
+            fecha: 'Fecha', cliente_id: 'Cliente', proveedor_id: 'Proveedor',
+            comprobante_id: 'Comprobante', estado_id: 'Estado', validez_dias: 'Validez (días)',
+          }
+          return map[f.name] || f.name
+        })
+        message.error(`Complete los campos obligatorios: ${nombres.join(', ')}`)
+      } else {
+        message.error(error.response?.data?.detail || 'Error al guardar')
+      }
     } finally {
       setSaving(false)
     }
@@ -345,7 +355,7 @@ export default function ComprasPage() {
   }
 
   const detallesValidos = useMemo(() => detalles.filter((d) => d.producto_id != null), [detalles])
-  const wizardSteps = [{ title: 'Productos' }, { title: 'Costos' }, { title: 'Encabezado' }]
+  const wizardSteps = [{ title: 'Productos' }, { title: 'Costos' }, { title: 'Datos' }]
 
   const detalleImagen = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.imagen || null
   const detalleMarca = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.marca
@@ -535,24 +545,33 @@ export default function ComprasPage() {
         width={820}
         className="responsive-modal"
         footer={
-          <div className="flex justify-between gap-2">
-            <Button onClick={handleCloseModal}>Cancelar</Button>
-            <div className="flex gap-2">
-              {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
-              {wizardCurrent < 2 ? (
-                <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
-                  Siguiente
-                </Button>
-              ) : (
-                <Button type="primary" loading={saving} onClick={handleSave}>
-                  Guardar
-                </Button>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5">
+              <div />
+            </div>
+            <div className="flex flex-col items-center gap-2 md:items-end">
+              {wizardCurrent > 0 && (
+                <div className="text-center md:text-right font-bold text-base leading-tight">
+                  Total: Bs. {totalCalculado.toFixed(2)}
+                </div>
               )}
+              <div className="flex gap-2 justify-center">
+                {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
+                {wizardCurrent < 2 ? (
+                  <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
+                    Siguiente
+                  </Button>
+                ) : (
+                  <Button type="primary" loading={saving} onClick={handleSave}>
+                    Finalizar
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         }
       >
-        <Steps size="small" current={wizardCurrent} items={wizardSteps} className="mb-4" />
+        <Steps size="small" direction="horizontal" responsive={false} current={wizardCurrent} items={wizardSteps} className="mb-4 steps-wizard" />
 
         {wizardCurrent === 0 && (
           <WizardProductoSelector
@@ -561,6 +580,7 @@ export default function ComprasPage() {
             seleccion={seleccionPaso0}
             onSeleccionChange={setSeleccionPaso0}
             showCostInfo
+            showCostOnly
           />
         )}
 
@@ -574,35 +594,30 @@ export default function ComprasPage() {
               getPrecio={(item) => item.costo}
               getSubtotal={(item) => (item.cantidad || 0) * item.costo}
               onRemove={removeDetalleRow}
-              renderExtra={(item) => (
-                <div className="flex flex-col gap-1 items-end">
-                  <InputNumber
-                    size="small"
-                    min={0}
-                    step={0.01}
-                    prefix="Bs."
-                    placeholder="Costo"
-                    className="w-[110px]"
-                    value={item.costo}
-                    onChange={(val) => updateDetalle(item.key, 'costo', val || 0)}
-                  />
-                  <InputNumber
-                    size="small"
-                    min={0}
-                    step={0.01}
-                    suffix="%"
-                    placeholder="Util. %"
-                    className="w-[90px]"
-                    value={item.utilidad_pct}
-                    onChange={(val) => updateDetalle(item.key, 'utilidad_pct', val || 0)}
-                  />
-                  <span className="text-xs text-gray-500">
-                    Pv: Bs. {((item.costo || 0) * (1 + Number(item.utilidad_pct || 0) / 100)).toFixed(2)}
-                  </span>
-                </div>
-              )}
+              quantityReadOnly
+              renderExtra={(item) => {
+                const prod = productos.find((p) => p.id === item.producto_id)
+                return (
+                  <div className="flex flex-col gap-1 items-end">
+                    <InputNumber
+                      size="small"
+                      min={0}
+                      step={0.01}
+                      prefix="Bs."
+                      placeholder="Costo"
+                      className="w-[110px]"
+                      value={item.costo}
+                      onChange={(val) => updateDetalle(item.key, 'costo', val || 0)}
+                    />
+                    {prod && (
+                      <span className="text-xs text-gray-500">
+                        P. actual: Bs. {Number(prod.precio || 0).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                )
+              }}
             />
-            <ResumenTotales subtotal={totalCalculado} total={totalCalculado} />
           </>
         )}
 
@@ -700,15 +715,11 @@ export default function ComprasPage() {
             />
           </div>
 
-          <ResumenTotales
-            subtotal={totalCalculado}
-            total={totalCalculado}
-            extra={
-              !editingCompra && numComprobanteAuto ? (
-                <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
-              ) : undefined
-            }
-          />
+          {!editingCompra && numComprobanteAuto && (
+            <div className="mb-2">
+              <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
+            </div>
+          )}
         </Form>
         )}
       </Modal>

@@ -65,11 +65,13 @@ export default function CrudPage<T extends { id: number }>({
     return <Spin className="flex justify-center py-20" />
   }
 
+  const fabVisible = isMobile && !modalVisible
+
   return (
-    <div>
+    <div className={fabVisible ? 'pb-16' : ''}>
       <PageHeader title={title}>
         {extraHeader}
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()} className={isMobile ? 'hidden' : ''}>
           Nuevo
         </Button>
       </PageHeader>
@@ -81,6 +83,17 @@ export default function CrudPage<T extends { id: number }>({
         loading={loading}
         pagination={{ pageSize: 10, size: isMobile ? 'small' : 'default' }}
       />
+
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={() => openModal()}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
 
       <CrudModal
         visible={modalVisible}

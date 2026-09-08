@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, Tag, Input, Switch, Grid, App, Steps } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, PrinterOutlined, CloseCircleOutlined, HistoryOutlined, EyeOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, PrinterOutlined, CloseCircleOutlined, HistoryOutlined, EyeOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Venta, VentaCreate } from '../types/venta'
@@ -22,7 +22,6 @@ import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
 import ProductoDetalleList from '../components/ProductoDetalleList'
-import ResumenTotales from '../components/ResumenTotales'
 import WizardProductoSelector, { type SeleccionProducto } from '../components/WizardProductoSelector'
 
 const { useBreakpoint } = Grid
@@ -316,7 +315,18 @@ export default function VentasPage() {
       setNumComprobanteAuto('')
       loadVentas()
     } catch (error: any) {
-      message.error(error.response?.data?.detail || 'Error al guardar')
+      if (error.errorFields) {
+        const nombres = error.errorFields.map((f: any) => {
+          const map: Record<string, string> = {
+            fecha: 'Fecha', cliente_id: 'Cliente', proveedor_id: 'Proveedor',
+            comprobante_id: 'Comprobante', estado_id: 'Estado', validez_dias: 'Validez (días)',
+          }
+          return map[f.name] || f.name
+        })
+        message.error(`Complete los campos obligatorios: ${nombres.join(', ')}`)
+      } else {
+        message.error(error.response?.data?.detail || 'Error al guardar')
+      }
     } finally {
       setSaving(false)
     }
@@ -390,7 +400,7 @@ export default function VentasPage() {
   }
 
   const detallesValidos = useMemo(() => detalles.filter((d) => d.producto_id != null), [detalles])
-  const wizardSteps = [{ title: 'Productos' }, { title: 'Precios' }, { title: 'Encabezado' }]
+  const wizardSteps = [{ title: 'Productos' }, { title: 'Precios' }, { title: 'Datos' }]
 
   const detalleImagen = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.imagen || null
   const detalleMarca = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.marca
@@ -756,24 +766,54 @@ export default function VentasPage() {
         width={820}
         className="responsive-modal"
         footer={
-          <div className="flex justify-between gap-2">
-            <Button onClick={handleCloseModal}>Cancelar</Button>
-            <div className="flex gap-2">
-              {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
-              {wizardCurrent < 2 ? (
-                <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
-                  Siguiente
-                </Button>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5">
+              {wizardCurrent === 0 ? (
+                <div />
+              ) : wizardCurrent === 1 ? (
+                <Switch
+                  checkedChildren="Con factura"
+                  unCheckedChildren="Sin factura"
+                  checked={conFactura}
+                  onChange={setConFactura}
+                />
               ) : (
-                <Button type="primary" loading={saving} onClick={handleSave}>
-                  Guardar
-                </Button>
+                <>
+                  {conFactura
+                    ? <Tag color="green" icon={<CheckCircleOutlined />}>Con factura</Tag>
+                    : <Tag color="red" icon={<CloseCircleOutlined />}>Sin factura</Tag>}
+                  {descuentoPct > 0 && <Tag color="orange">Descuento: {descuentoPct}%</Tag>}
+                </>
               )}
+            </div>
+            <div className="flex flex-col items-center gap-2 md:items-end">
+              {wizardCurrent > 0 && (
+                <div className="text-center md:text-right leading-tight">
+                  <div className="font-bold text-base">Total: Bs. {totalCalculado.toFixed(2)}</div>
+                  {conFactura && (
+                    <div className="text-xs text-gray-500">
+                      IVA (13% inc.): Bs. {ivaInfoCalculado.toFixed(2)} · IT (3% inc.): Bs. {itInfoCalculado.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-2 justify-center">
+                {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
+                {wizardCurrent < 2 ? (
+                  <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
+                    Siguiente
+                  </Button>
+                ) : (
+                  <Button type="primary" loading={saving} onClick={handleSave}>
+                    Finalizar
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         }
       >
-        <Steps size="small" current={wizardCurrent} items={wizardSteps} className="mb-4" />
+        <Steps size="small" direction="horizontal" responsive={false} current={wizardCurrent} items={wizardSteps} className="mb-4 steps-wizard" />
 
         {wizardCurrent === 0 && (
           <WizardProductoSelector
@@ -788,8 +828,17 @@ export default function VentasPage() {
         {wizardCurrent === 1 && (
           <Form form={form} layout="vertical">
             <div className="flex justify-end items-center mb-2 gap-2">
-              <span>Con factura</span>
-              <Switch checked={conFactura} onChange={setConFactura} />
+              <Space size="small" align="center">
+                <span className="text-sm">Descuento %:</span>
+                <InputNumber
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  className="w-24"
+                  value={descuentoPct}
+                  onChange={(v) => form.setFieldValue('descuento', v ?? 0)}
+                />
+              </Space>
             </div>
             <ProductoDetalleList<DetalleLine>
               items={detallesValidos}
@@ -800,6 +849,7 @@ export default function VentasPage() {
               getPrecio={(item) => precioFinalItem(item.precio || 0)}
               getSubtotal={(item) => (item.cantidad || 0) * precioFinalItem(item.precio || 0)}
               onRemove={removeDetalleRow}
+              quantityReadOnly
               renderExtra={(item) => (
                 <div className="flex flex-col items-center gap-0.5">
                   <InputNumber
@@ -819,15 +869,6 @@ export default function VentasPage() {
                   )}
                 </div>
               )}
-            />
-            <ResumenTotales
-              conFactura={conFactura}
-              subtotal={subtotalCalculado}
-              iva={ivaInfoCalculado}
-              it={itInfoCalculado}
-              descuentoPct={descuentoPct}
-              descuento={descuentoCalculado}
-              total={totalCalculado}
             />
           </Form>
         )}
@@ -911,12 +952,6 @@ export default function VentasPage() {
             />
           </Form.Item>
 
-          <div className="flex flex-wrap gap-3">
-            <Form.Item name="descuento" label="Descuento %" className="flex-1 min-w-[120px]" initialValue={0}>
-              <InputNumber min={0} max={100} className="w-full" />
-            </Form.Item>
-          </div>
-
           <div className="mt-2 mb-3">
             <div className="text-sm font-medium mb-2">Detalle (sin editar)</div>
             <ProductoDetalleList<DetalleLine>
@@ -931,20 +966,11 @@ export default function VentasPage() {
             />
           </div>
 
-          <ResumenTotales
-            conFactura={conFactura}
-            subtotal={subtotalCalculado}
-            iva={ivaInfoCalculado}
-            it={itInfoCalculado}
-            descuentoPct={descuentoPct}
-            descuento={descuentoCalculado}
-            total={totalCalculado}
-            extra={
-              !editingVenta && numComprobanteAuto ? (
-                <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
-              ) : undefined
-            }
-          />
+          {!editingVenta && numComprobanteAuto && (
+            <div className="mb-2">
+              <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
+            </div>
+          )}
         </Form>
         )}
       </Modal>

@@ -79,8 +79,9 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect, sho
     {
       title: 'Producto',
       key: 'producto',
+      width: 280,
       render: (_, r) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           {r.imagen && (
             <img
               src={resolveUrl(r.imagen)}
@@ -88,7 +89,7 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect, sho
               style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
             />
           )}
-          <div>
+          <div style={{ whiteSpace: 'normal', wordBreak: 'break-word', minWidth: 0 }}>
             <span style={{ fontWeight: 500 }}>{`[${r.codigo}] ${catMap.get(r.categoria_id ?? 0) ?? ''} - ${r.descripcion}`}</span>
             <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
               {r.marca && <span style={{ color: '#888', fontSize: 12 }}>{r.marca}</span>}
@@ -166,7 +167,6 @@ export default function ProductoSelectorModal({ visible, onCancel, onSelect, sho
           loading={loading}
           size="small"
           pagination={{ pageSize: 8 }}
-          scroll={{ x: 'max-content' }}
           onRow={(record) => ({
             onClick: () => {
               onSelect(record)

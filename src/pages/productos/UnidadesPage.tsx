@@ -153,10 +153,12 @@ export default function UnidadesPage() {
 
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
 
+  const fabVisible = isMobile && !modalVisible
+
   return (
-    <div>
+    <div className={fabVisible ? 'pb-16' : ''}>
       <PageHeader title="Unidades de Medida">
-        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingUnidad(null); form.resetFields(); setModalVisible(true) }}>
+        <Button type="primary" icon={<PlusOutlined />} size={isMobile ? 'middle' : 'middle'} onClick={() => { setEditingUnidad(null); form.resetFields(); setModalVisible(true) }} className={isMobile ? 'hidden' : ''}>
           Nueva Unidad
         </Button>
       </PageHeader>
@@ -237,6 +239,16 @@ export default function UnidadesPage() {
           </Form.Item>
         </Form>
       </Modal>
+      {fabVisible && (
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<PlusOutlined />}
+          onClick={() => { setEditingUnidad(null); form.resetFields(); setModalVisible(true) }}
+          className="!fixed bottom-6 right-6 z-50 !w-14 !h-14 !text-2xl shadow-lg"
+        />
+      )}
     </div>
   )
 }
