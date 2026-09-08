@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, Tag, Input, Switch, Grid, Checkbox, Card, Space, Select, App } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Popconfirm, Tag, Input, Switch, Grid, Card, Space, Select, App, Steps } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined,
+  PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
   CheckOutlined, ShoppingCartOutlined, ProfileOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -24,7 +24,9 @@ import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
-import ProductoSelectorModal from '../components/ProductoSelectorModal'
+import ProductoDetalleList from '../components/ProductoDetalleList'
+import ResumenTotales from '../components/ResumenTotales'
+import WizardProductoSelector, { type SeleccionProducto } from '../components/WizardProductoSelector'
 import SubCrudSelect from '../components/SubCrudSelect'
 
 const { useBreakpoint } = Grid
@@ -97,13 +99,15 @@ export default function CotizacionesPage() {
 
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
+  const [seleccionPaso0, setSeleccionPaso0] = useState<Record<number, SeleccionProducto>>({})
+  const [incluirImagenes, setIncluirImagenes] = useState(false)
 
   const [filterFecha, setFilterFecha] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
   const [searchClienteText, setSearchClienteText] = useState('')
   const [filterEstado, setFilterEstado] = useState<string | undefined>(undefined)
 
-  const [productoModalVisible, setProductoModalVisible] = useState(false)
-  const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
+  const [wizardCurrent, setWizardCurrent] = useState(0)
+  const [saving, setSaving] = useState(false)
 
   const [detailVisible, setDetailVisible] = useState(false)
   const [detailCotizacion, setDetailCotizacion] = useState<Cotizacion | null>(null)
@@ -126,9 +130,8 @@ export default function CotizacionesPage() {
 
   const watchedFecha = Form.useWatch('fecha', form)
   const watchedValidez = Form.useWatch('validez_dias', form)
-  const watchedConFactura = Form.useWatch('con_factura', form)
   const watchedDescuento = Form.useWatch('descuento', form)
-  const conFactura = !!watchedConFactura
+  const [conFactura, setConFactura] = useState(false)
   const descuentoPct = Number(watchedDescuento || 0)
 
   const loadCotizaciones = useCallback(async () => {
@@ -231,12 +234,14 @@ export default function CotizacionesPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingCotizacion(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
+    setDetalles([])
+    setSeleccionPaso0({})
+    setConFactura(false)
+    setIncluirImagenes(false)
+    setWizardCurrent(0)
     form.resetFields()
     form.setFieldsValue({
       fecha: dayjs(),
-      con_factura: false,
-      incluir_imagenes: false,
       validez_dias: 15,
       descuento: 0,
     })
@@ -246,11 +251,10 @@ export default function CotizacionesPage() {
   const openEditModal = async (cot: Cotizacion) => {
     await loadProductos()
     setEditingCotizacion(cot)
+    setConFactura(!!cot.con_factura)
     form.setFieldsValue({
       fecha: dayjs(cot.fecha),
       cliente_id: cot.cliente_id,
-      con_factura: cot.con_factura,
-      incluir_imagenes: cot.incluir_imagenes,
       modalidad_pago: cot.modalidad_pago || '',
       forma_pago: cot.forma_pago || '',
       validez_dias: cot.validez_dias,
@@ -291,16 +295,25 @@ export default function CotizacionesPage() {
           costo: costo,
           costo_base: costoBase,
           utilidad_pct: Number(d.utilidad_pct || 0),
-          precio_venta: calcularPrecioVenta(costo, Number(d.utilidad_pct || 0), conFactura),
+          precio_venta: calcularPrecioVenta(costo, Number(d.utilidad_pct || 0), !!cot.con_factura),
           stock_actual: Number(d.stock_actual || 0),
           unidades_disponibles: unidadesDisponibles,
         }
       }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }]
     )
+    setSeleccionPaso0(
+      (cot.detalles || []).reduce<Record<number, SeleccionProducto>>((acc, d) => {
+        if (d.producto_id != null) acc[d.producto_id] = { cantidad: d.cantidad || 1, unidad_id: d.unidad_id ?? null }
+        return acc
+      }, {})
+    )
+    setIncluirImagenes(!!cot.incluir_imagenes)
+    setWizardCurrent((cot.detalles?.length ?? 0) > 0 ? 1 : 0)
     setModalVisible(true)
   }
 
   const handleSave = async () => {
+    setSaving(true)
     try {
       const values = await form.validateFields()
       const validDetalles = detalles.filter((d) => d.producto_id != null)
@@ -312,8 +325,8 @@ export default function CotizacionesPage() {
       const data: CotizacionCreate = {
         fecha: values.fecha.format('YYYY-MM-DD'),
         cliente_id: values.cliente_id,
-        con_factura: values.con_factura || false,
-        incluir_imagenes: values.incluir_imagenes || false,
+        con_factura: conFactura,
+        incluir_imagenes: incluirImagenes,
         modalidad_pago: values.modalidad_pago || '',
         forma_pago: values.forma_pago || '',
         validez_dias: values.validez_dias || 15,
@@ -342,6 +355,8 @@ export default function CotizacionesPage() {
       loadCotizaciones()
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al guardar')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -365,62 +380,108 @@ export default function CotizacionesPage() {
     }
   }
 
-  const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', unidad_id: null, unidad_nombre: '', unidad_abreviatura: '', es_principal: true, factor_conversion: 1, cantidad: 1, costo: 0, costo_base: 0, utilidad_pct: 0, precio_venta: 0, stock_actual: 0, unidades_disponibles: [] }])
+  const commitSeleccionCotizacion = () => {
+    setDetalles((prev) => {
+      const prevByProducto = new Map(prev.filter((d) => d.producto_id != null).map((d) => [d.producto_id!, d]))
+      const ids = Object.keys(seleccionPaso0).map(Number)
+      return ids.map((pid) => {
+        const sel = seleccionPaso0[pid]
+        const existing = prevByProducto.get(pid)
+        if (existing) {
+          const u =
+            existing.unidades_disponibles.find((uu) => uu.id === (sel.unidad_id ?? existing.unidad_id)) ||
+            existing.unidades_disponibles.find((uu) => uu.es_principal) ||
+            null
+          const factor = u?.factor || existing.factor_conversion || 1
+          const esPrincipal = u?.es_principal ?? existing.es_principal
+          const nuevoCosto = esPrincipal ? existing.costo_base : existing.costo_base * factor
+          return {
+            ...existing,
+            cantidad: Math.max(1, Number(sel.cantidad || 1)),
+            unidad_id: u?.id ?? existing.unidad_id,
+            unidad_nombre: u?.nombre || existing.unidad_nombre,
+            unidad_abreviatura: u?.abreviatura || existing.unidad_abreviatura,
+            es_principal: esPrincipal,
+            factor_conversion: factor,
+            costo: nuevoCosto,
+            precio_venta: calcularPrecioVenta(nuevoCosto, existing.utilidad_pct, conFactura),
+          }
+        }
+        const producto = productos.find((p) => p.id === pid)
+        if (!producto) return null
+        const costoBase = Number(producto.precio || 0)
+        const utilidad_pct = costoBase > 0 ? Math.round((Number(producto.utilidad || 0) / costoBase) * 10000) / 100 : 0
+        const unidadesDisponibles: UnidadDisponible[] = (producto.unidades || []).map((pu) => ({
+          id: pu.unidad_id,
+          nombre: pu.unidad_nombre,
+          abreviatura: pu.unidad_abreviatura,
+          factor: Number(pu.factor_conversion || 1),
+          es_principal: !!pu.es_principal,
+        }))
+        const u = unidadesDisponibles.find((ud) => ud.id === (sel.unidad_id ?? null)) || unidadesDisponibles.find((ud) => ud.es_principal) || unidadesDisponibles[0] || null
+        const factor = u?.factor || 1
+        const costo = u ? (u.es_principal ? costoBase : costoBase * factor) : costoBase
+        return {
+          key: `${pid}-${Date.now()}-${Math.random()}`,
+          producto_id: pid,
+          producto_nombre: producto.descripcion,
+          producto_codigo: producto.codigo,
+          producto_categoria: catMap.get(producto.categoria_id) || '',
+          unidad_id: u?.id ?? null,
+          unidad_nombre: u?.nombre || '',
+          unidad_abreviatura: u?.abreviatura || '',
+          es_principal: u?.es_principal ?? true,
+          factor_conversion: factor,
+          cantidad: Math.max(1, Number(sel.cantidad || 1)),
+          costo,
+          costo_base: costoBase,
+          utilidad_pct,
+          precio_venta: calcularPrecioVenta(costo, utilidad_pct, conFactura),
+          stock_actual: Number((producto as any).stock_actual || 0),
+          unidades_disponibles: unidadesDisponibles,
+        }
+      }).filter((d): d is NonNullable<typeof d> => d != null)
+    })
   }
 
   const removeDetalleRow = (key: string) => {
+    const line = detalles.find((d) => d.key === key)
     setDetalles((prev) => prev.filter((d) => d.key !== key))
-  }
-
-  const openProductoModal = (detKey: string) => {
-    setSelectedDetalleKey(detKey)
-    setProductoModalVisible(true)
-  }
-
-  const selectProducto = (producto: Producto) => {
-    if (selectedDetalleKey) {
-      const costoBase = Number(producto.precio || 0)
-      const utilidad_pct = costoBase > 0 ? (Number(producto.utilidad || 0) / costoBase) * 100 : 0
-      const unidadesDisponibles: UnidadDisponible[] = (producto.unidades || []).map((pu) => ({
-        id: pu.unidad_id,
-        nombre: pu.unidad_nombre,
-        abreviatura: pu.unidad_abreviatura,
-        factor: Number(pu.factor_conversion || 1),
-        es_principal: !!pu.es_principal,
-      }))
-      const principal = producto.unidad_principal
-      const unidadId = principal ? principal.unidad_id : (unidadesDisponibles.length > 0 ? unidadesDisponibles[0].id : null)
-      const u = unidadesDisponibles.find((ud) => ud.id === unidadId) || unidadesDisponibles[0] || null
-      const factor = u?.factor || 1
-      // costo_base es el costo de 1 unidad principal; el costo de la línea en su
-      // unidad es costo_base * factor (p. ej. caja factor 10 -> costo x10)
-      const costo = u ? (u.es_principal ? costoBase : costoBase * factor) : costoBase
-      setDetalles((prev) => prev.map((d) =>
-        d.key === selectedDetalleKey
-          ? {
-              ...d,
-              producto_id: producto.id,
-              producto_nombre: producto.descripcion,
-              producto_codigo: producto.codigo,
-              producto_categoria: catMap.get(producto.categoria_id) || '',
-              costo,
-              costo_base: costoBase,
-              utilidad_pct,
-              precio_venta: calcularPrecioVenta(costo, utilidad_pct, conFactura),
-              stock_actual: Number((producto as any).stock_actual || 0),
-              unidad_id: unidadId,
-              unidad_nombre: u?.nombre || '',
-              unidad_abreviatura: u?.abreviatura || '',
-              es_principal: u?.es_principal ?? true,
-              factor_conversion: factor,
-              unidades_disponibles: unidadesDisponibles,
-            }
-          : d
-      ))
+    if (line && line.producto_id != null) {
+      setSeleccionPaso0((prev) => {
+        const next = { ...prev }
+        delete next[line.producto_id!]
+        return next
+      })
     }
-    setProductoModalVisible(false)
-    setSelectedDetalleKey(null)
+  }
+
+  const detallesValidos = useMemo(() => detalles.filter((d) => d.producto_id != null), [detalles])
+  const wizardSteps = [{ title: 'Productos' }, { title: 'Precios' }, { title: 'Encabezado' }]
+
+  const detalleImagen = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.imagen || null
+  const detalleMarca = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.marca
+  const detalleProcedencia = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.procedencia
+
+  const goNext = () => {
+    if (wizardCurrent === 0) {
+      if (Object.keys(seleccionPaso0).length === 0) {
+        message.warning('Debe agregar al menos un producto')
+        return
+      }
+      commitSeleccionCotizacion()
+    }
+    setWizardCurrent((c) => Math.min(2, c + 1))
+  }
+
+  const goBack = () => setWizardCurrent((c) => Math.max(0, c - 1))
+
+  const handleCloseModal = () => {
+    setModalVisible(false)
+    setWizardCurrent(0)
+    setDetalles([])
+    setSeleccionPaso0({})
+    setIncluirImagenes(false)
   }
 
   const updateDetalle = (key: string, field: keyof DetalleLine, value: any) => {
@@ -683,12 +744,97 @@ export default function CotizacionesPage() {
       <Modal
         title={editingCotizacion ? `Editar Cotización ${editingCotizacion.numero}` : 'Nueva Cotización'}
         open={modalVisible}
-        onCancel={() => { setModalVisible(false); setDetalles([]) }}
-        onOk={handleSave}
+        onCancel={handleCloseModal}
         width={860}
         className="responsive-modal"
+        footer={
+          <div className="flex justify-between gap-2">
+            <Button onClick={handleCloseModal}>Cancelar</Button>
+            <div className="flex gap-2">
+              {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
+              {wizardCurrent < 2 ? (
+                <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
+                  Siguiente
+                </Button>
+              ) : (
+                <Button type="primary" loading={saving} onClick={handleSave}>
+                  Guardar
+                </Button>
+              )}
+            </div>
+          </div>
+        }
       >
-        <Form form={form} layout="vertical">
+        <Steps size="small" current={wizardCurrent} items={wizardSteps} className="mb-4" />
+
+        {wizardCurrent === 0 && (
+          <WizardProductoSelector
+            productos={productos}
+            categorias={categorias}
+            seleccion={seleccionPaso0}
+            onSeleccionChange={setSeleccionPaso0}
+            showUnidad
+            showIncluirImagenes
+            incluirImagenes={incluirImagenes}
+            onIncluirImagenesChange={(val) => {
+              setIncluirImagenes(val)
+              form.setFieldValue('incluir_imagenes', val)
+            }}
+          />
+        )}
+
+        {wizardCurrent === 1 && (
+          <Form form={form} layout="vertical">
+            <div className="flex justify-end items-center mb-2 gap-2">
+              <span>Con factura</span>
+              <Switch checked={conFactura} onChange={setConFactura} />
+            </div>
+            <ProductoDetalleList<DetalleLine>
+              items={detallesValidos}
+              getImagen={detalleImagen}
+              getMarca={detalleMarca}
+              getProcedencia={detalleProcedencia}
+              getUnidad={(item) => item.unidad_nombre ? `${item.unidad_nombre} (${item.unidad_abreviatura || '-'})` : undefined}
+              getPrecio={(item) => item.precio_venta}
+              getSubtotal={(item) => (item.cantidad || 0) * (item.precio_venta || 0)}
+              onRemove={removeDetalleRow}
+              quantityMin={0.01}
+              quantityStep={0.01}
+              renderExtra={(item) => (
+                <div className="flex flex-col gap-1 items-center">
+                  <InputNumber
+                    size="small"
+                    min={0}
+                    step={0.01}
+                    suffix="%"
+                    className="w-[90px]"
+                    placeholder="Util. %"
+                    value={item.utilidad_pct}
+                    onChange={(val) => updateDetalle(item.key, 'utilidad_pct', val || 0)}
+                  />
+                  {item.producto_id != null && (item.cantidad || 0) * (Number(item.factor_conversion) || 1) > item.stock_actual && (
+                    <div className="text-red-500 text-xs leading-[14px]">
+                      Stock: {item.stock_actual}{' '}
+                      {item.unidades_disponibles.find((u) => u.es_principal)?.abreviatura || ''}
+                    </div>
+                  )}
+                </div>
+              )}
+            />
+            <ResumenTotales
+              conFactura={conFactura}
+              subtotal={subtotalCalculado}
+              iva={ivaCalculado}
+              it={itCalculado}
+              descuentoPct={descuentoPct}
+              descuento={descuentoCalculado}
+              total={totalCalculado}
+            />
+          </Form>
+        )}
+
+        {wizardCurrent === 2 && (
+          <Form form={form} layout="vertical">
           <div className="flex flex-wrap gap-3">
             <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} className="flex-1 min-w-[150px] !mb-3" getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
               <DatePicker className="w-full" />
@@ -719,19 +865,11 @@ export default function CotizacionesPage() {
             </Form.Item>
           </div>
 
-          <div className="flex flex-wrap gap-6 mb-2">
-            <Form.Item name="con_factura" label="Con factura" valuePropName="checked" className="!mb-0">
-              <Checkbox />
-            </Form.Item>
-            <Form.Item name="incluir_imagenes" label="Incluir imágenes de productos" valuePropName="checked" className="!mb-0">
-              <Checkbox />
-            </Form.Item>
-            {fechaVencimiento && (
-              <div className="self-center text-sm text-gray-500">
+          {fechaVencimiento && (
+              <div className="self-center text-sm text-gray-500 mb-2">
                 Vencimiento: <strong>{fechaVencimiento.format('DD/MM/YYYY')}</strong>
               </div>
             )}
-          </div>
 
           <Form.Item name="modalidad_pago" label="Modalidad de pago">
             <Input placeholder="Ej. 50% adelanto, 50% contra entrega" />
@@ -752,156 +890,35 @@ export default function CotizacionesPage() {
             <Input.TextArea rows={3} placeholder="Términos y condiciones de la oferta" />
           </Form.Item>
 
-          <div className="flex justify-between items-center mb-2">
-            <strong>Detalles de la cotización</strong>
-            {conFactura && <Tag color="orange">IVA {IVA_RATE}% + IT {IT_RATE}%</Tag>}
+          <div className="mt-2 mb-3">
+            <div className="text-sm font-medium mb-2">Detalle (sin editar)</div>
+            <ProductoDetalleList<DetalleLine>
+              items={detallesValidos}
+              getImagen={detalleImagen}
+              getMarca={detalleMarca}
+              getProcedencia={detalleProcedencia}
+              getUnidad={(item) => item.unidad_nombre ? `${item.unidad_nombre} (${item.unidad_abreviatura || '-'})` : undefined}
+              getPrecio={(item) => item.precio_venta}
+              getSubtotal={(item) => (item.cantidad || 0) * (item.precio_venta || 0)}
+              quantityMin={0.01}
+              quantityStep={0.01}
+              readOnly
+            />
           </div>
 
-          {detalles.map((det, index) => (
-            <div key={det.key} className="flex flex-wrap gap-2 mb-2 items-start">
-              <div className="flex-1 min-w-[140px]">
-                <Form.Item label={index === 0 ? 'Producto' : ''} className="!mb-0">
-                  <Input.Search
-                    placeholder="Buscar producto"
-                    value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
-                    readOnly
-                    onSearch={() => openProductoModal(det.key)}
-                    enterButton={<SearchOutlined />}
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[120px] shrink-0">
-                <Form.Item label={index === 0 ? 'Unidad' : ''} className="!mb-0">
-                  <Select
-                    placeholder="Unidad"
-                    value={det.unidad_id}
-                    onChange={(val) => {
-                      const u = det.unidades_disponibles.find((uu) => uu.id === val)
-                      if (!u) return
-                      const factor = u.factor || 1
-                      const nuevoCosto = u.es_principal ? det.costo_base : det.costo_base * factor
-                      updateDetalle(det.key, 'unidad_id', val)
-                      updateDetalle(det.key, 'unidad_nombre', u.nombre || '')
-                      updateDetalle(det.key, 'unidad_abreviatura', u.abreviatura || '')
-                      updateDetalle(det.key, 'factor_conversion', factor)
-                      updateDetalle(det.key, 'es_principal', !!u.es_principal)
-                      updateDetalle(det.key, 'costo', nuevoCosto)
-                      updateDetalle(det.key, 'precio_venta', calcularPrecioVenta(nuevoCosto, det.utilidad_pct, conFactura))
-                    }}
-                    options={det.unidades_disponibles.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura || '-'})` }))}
-                    size="small"
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[65px] shrink-0">
-                <Form.Item label={index === 0 ? 'Cant.' : ''} className="!mb-0">
-                  <InputNumber
-                    min={0.01}
-                    step={0.01}
-                    className="w-full"
-                    value={det.cantidad}
-                    onChange={(val) => updateDetalle(det.key, 'cantidad', val)}
-                  />
-                  {det.producto_id && (det.cantidad || 0) * (Number(det.factor_conversion) || 1) > det.stock_actual && (
-                    <div className="text-red-500 text-xs leading-[14px] mt-0.5">
-                      Stock: {det.stock_actual}{' '}
-                      {det.unidades_disponibles.find((u) => u.es_principal)?.abreviatura || ''}
-                    </div>
-                  )}
-                </Form.Item>
-              </div>
-              <div className="w-[95px] shrink-0">
-                <Form.Item label={index === 0 ? 'Costo' : ''} className="!mb-0">
-                  <InputNumber
-                    min={0}
-                    step={0.01}
-                    prefix="Bs."
-                    className="w-full"
-                    value={det.costo}
-                    onChange={(val) => updateDetalle(det.key, 'costo', val || 0)}
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[95px] shrink-0">
-                <Form.Item label={index === 0 ? 'Util. %' : ''} className="!mb-0">
-                  <InputNumber
-                    min={0}
-                    step={0.01}
-                    suffix="%"
-                    className="w-full"
-                    value={det.utilidad_pct}
-                    onChange={(val) => updateDetalle(det.key, 'utilidad_pct', val || 0)}
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[95px] shrink-0">
-                <Form.Item label={index === 0 ? 'P. Venta' : ''} className="!mb-0">
-                  <InputNumber
-                    className="w-full"
-                    value={det.precio_venta}
-                    disabled
-                    variant="borderless"
-                    prefix="Bs."
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[95px] shrink-0">
-                <Form.Item label={index === 0 ? 'Subtotal' : ''} className="!mb-0">
-                  <InputNumber
-                    className="w-full"
-                    value={(det.cantidad || 0) * (det.precio_venta || 0)}
-                    disabled
-                    variant="borderless"
-                  />
-                </Form.Item>
-              </div>
-              {detalles.length > 1 && (
-                <div className={index === 0 ? 'pt-[22px]' : ''}>
-                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} size="small" />
-                </div>
-              )}
-            </div>
-          ))}
-
-          <Button type="dashed" onClick={addDetalleRow} className="w-full !mb-3" icon={<PlusOutlined />}>
-            Agregar producto
-          </Button>
-
-          <div className="text-right font-bold">
-            {descuentoPct > 0 && (
-              <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
-            )}
-            {conFactura && (
-              <>
-                <div className="font-normal text-sm text-orange-500">
-                  IVA ({IVA_RATE}% inc.): Bs. {ivaCalculado.toFixed(2)}
-                </div>
-                <div className="font-normal text-sm text-orange-500">
-                  IT ({IT_RATE}% inc.): Bs. {itCalculado.toFixed(2)}
-                </div>
-              </>
-            )}
-            {descuentoPct > 0 && (
-              <div className="font-normal text-sm text-green-600">
-                Descuento ({descuentoPct}%): -Bs. {descuentoCalculado.toFixed(2)}
-              </div>
-            )}
-            <div className="text-lg mt-1">
-              Total: Bs. {totalCalculado.toFixed(2)}
-            </div>
-          </div>
-        </Form>
+          <ResumenTotales
+            conFactura={conFactura}
+            subtotal={subtotalCalculado}
+            iva={ivaCalculado}
+            it={itCalculado}
+            descuentoPct={descuentoPct}
+            descuento={descuentoCalculado}
+            total={totalCalculado}
+            extra={conFactura ? <Tag color="orange">IVA {IVA_RATE}% + IT {IT_RATE}%</Tag> : undefined}
+          />
+          </Form>
+        )}
       </Modal>
-
-      <ProductoSelectorModal
-        visible={productoModalVisible}
-        onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
-        onSelect={selectProducto}
-      />
 
       <Modal
         title="Detalle de Cotización"

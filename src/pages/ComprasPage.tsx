@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, Tag, Input, Switch, Grid, App } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, Tag, Input, Switch, Grid, App, Steps } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, CloseCircleOutlined, EyeOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, CloseCircleOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Compra, CompraCreate } from '../types/compra'
@@ -19,7 +19,9 @@ import { formatCurrency } from '../utils/format'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
-import ProductoSelectorModal from '../components/ProductoSelectorModal'
+import ProductoDetalleList from '../components/ProductoDetalleList'
+import ResumenTotales from '../components/ResumenTotales'
+import WizardProductoSelector, { type SeleccionProducto } from '../components/WizardProductoSelector'
 
 const { useBreakpoint } = Grid
 
@@ -31,6 +33,7 @@ interface DetalleLine {
   producto_categoria: string
   cantidad: number | null
   costo: number
+  utilidad_pct: number
 }
 
 export default function ComprasPage() {
@@ -51,6 +54,7 @@ export default function ComprasPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
+  const [seleccionPaso0, setSeleccionPaso0] = useState<Record<number, SeleccionProducto>>({})
   const [numComprobanteAuto, setNumComprobanteAuto] = useState('')
   const [autoNum, setAutoNum] = useState(false)
 
@@ -60,8 +64,8 @@ export default function ComprasPage() {
 
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
 
-  const [productoModalVisible, setProductoModalVisible] = useState(false)
-  const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
+  const [wizardCurrent, setWizardCurrent] = useState(0)
+  const [saving, setSaving] = useState(false)
 
   const proveedorOptions = useMemo(() =>
     proveedores.filter((p) => p.activo !== false).map((p) => ({ value: p.id, label: p.nombre })),
@@ -184,9 +188,11 @@ export default function ComprasPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingCompra(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }])
+    setDetalles([])
+    setSeleccionPaso0({})
     setNumComprobanteAuto('')
     setAutoNum(false)
+    setWizardCurrent(0)
     form.resetFields()
     form.setFieldsValue({
       fecha: dayjs(),
@@ -206,9 +212,17 @@ export default function ComprasPage() {
       estado_id: compra.estado_id,
     })
     setNumComprobanteAuto(compra.num_comprobante)
+    setSeleccionPaso0(
+      (compra.detalles || []).reduce<Record<number, SeleccionProducto>>((acc, d) => {
+        if (d.producto_id != null) acc[d.producto_id] = { cantidad: d.cantidad || 1 }
+        return acc
+      }, {})
+    )
     setDetalles(
       compra.detalles?.map((d, i) => {
         const p = productos.find((p2) => p2.id === d.producto_id)
+        const costo = p ? Number(p.precio || 0) : Number(d.costo)
+        const utilidad_pct = costo > 0 ? Math.round((Number(p?.utilidad || 0) / costo) * 10000) / 100 : 0
         return {
           key: String(i + 1),
           producto_id: d.producto_id,
@@ -216,14 +230,17 @@ export default function ComprasPage() {
           producto_codigo: d.producto_codigo,
           producto_categoria: d.producto_categoria || '',
           cantidad: d.cantidad,
-          costo: p ? Number(p.precio || 0) : Number(d.costo),
+          costo,
+          utilidad_pct,
         }
-      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }]
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0, utilidad_pct: 0 }]
     )
+    setWizardCurrent((compra.detalles?.length ?? 0) > 0 ? 1 : 0)
     setModalVisible(true)
   }
 
   const handleSave = async () => {
+    setSaving(true)
     try {
       const values = await form.validateFields()
       const validDetalles = detalles.filter((d) => d.producto_id != null)
@@ -262,6 +279,8 @@ export default function ComprasPage() {
       loadCompras()
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al guardar')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -285,30 +304,72 @@ export default function ComprasPage() {
     }
   }
 
-  const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, costo: 0 }])
+  const commitSeleccionCompra = () => {
+    setDetalles((prev) => {
+      const prevByProducto = new Map(prev.filter((d) => d.producto_id != null).map((d) => [d.producto_id!, d]))
+      const ids = Object.keys(seleccionPaso0).map(Number)
+      return ids.map((pid) => {
+        const sel = seleccionPaso0[pid]
+        const existing = prevByProducto.get(pid)
+        if (existing) {
+          return { ...existing, cantidad: sel.cantidad }
+        }
+        const producto = productos.find((p) => p.id === pid)
+        if (!producto) return null
+        const costo = Number(producto.precio || 0)
+        const utilidad_pct = costo > 0 ? Math.round((Number(producto.utilidad || 0) / costo) * 10000) / 100 : 0
+        return {
+          key: `${pid}-${Date.now()}-${Math.random()}`,
+          producto_id: pid,
+          producto_nombre: producto.descripcion,
+          producto_codigo: producto.codigo,
+          producto_categoria: catMap.get(producto.categoria_id) || '',
+          cantidad: sel.cantidad,
+          costo,
+          utilidad_pct,
+        }
+      }).filter((d): d is NonNullable<typeof d> => d != null)
+    })
   }
 
   const removeDetalleRow = (key: string) => {
+    const line = detalles.find((d) => d.key === key)
     setDetalles((prev) => prev.filter((d) => d.key !== key))
-  }
-
-  const openProductoModal = (detKey: string) => {
-    setSelectedDetalleKey(detKey)
-    setProductoModalVisible(true)
-  }
-
-  const selectProducto = (producto: Producto) => {
-    if (selectedDetalleKey) {
-      const costo = Number(producto.precio ?? 0)
-      setDetalles((prev) => prev.map((d) =>
-        d.key === selectedDetalleKey
-          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', costo }
-          : d
-      ))
+    if (line && line.producto_id != null) {
+      setSeleccionPaso0((prev) => {
+        const next = { ...prev }
+        delete next[line.producto_id!]
+        return next
+      })
     }
-    setProductoModalVisible(false)
-    setSelectedDetalleKey(null)
+  }
+
+  const detallesValidos = useMemo(() => detalles.filter((d) => d.producto_id != null), [detalles])
+  const wizardSteps = [{ title: 'Productos' }, { title: 'Costos' }, { title: 'Encabezado' }]
+
+  const detalleImagen = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.imagen || null
+  const detalleMarca = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.marca
+  const detalleProcedencia = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.procedencia
+
+  const goNext = () => {
+    if (wizardCurrent === 0) {
+      if (Object.keys(seleccionPaso0).length === 0) {
+        message.warning('Debe agregar al menos un producto')
+        return
+      }
+      commitSeleccionCompra()
+    }
+    setWizardCurrent((c) => Math.min(2, c + 1))
+  }
+
+  const goBack = () => setWizardCurrent((c) => Math.max(0, c - 1))
+
+  const handleCloseModal = () => {
+    setModalVisible(false)
+    setWizardCurrent(0)
+    setDetalles([])
+    setSeleccionPaso0({})
+    setNumComprobanteAuto('')
   }
 
   const updateDetalle = (key: string, field: keyof DetalleLine, value: any) => {
@@ -470,15 +531,86 @@ export default function ComprasPage() {
       <Modal
         title={editingCompra ? 'Editar Compra' : 'Nueva Compra'}
         open={modalVisible}
-        onCancel={() => { setModalVisible(false); setDetalles([]); setNumComprobanteAuto('') }}
-        onOk={handleSave}
-        width={720}
+        onCancel={handleCloseModal}
+        width={820}
         className="responsive-modal"
+        footer={
+          <div className="flex justify-between gap-2">
+            <Button onClick={handleCloseModal}>Cancelar</Button>
+            <div className="flex gap-2">
+              {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
+              {wizardCurrent < 2 ? (
+                <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
+                  Siguiente
+                </Button>
+              ) : (
+                <Button type="primary" loading={saving} onClick={handleSave}>
+                  Guardar
+                </Button>
+              )}
+            </div>
+          </div>
+        }
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
-            <DatePicker className="w-full" />
-          </Form.Item>
+        <Steps size="small" current={wizardCurrent} items={wizardSteps} className="mb-4" />
+
+        {wizardCurrent === 0 && (
+          <WizardProductoSelector
+            productos={productos}
+            categorias={categorias}
+            seleccion={seleccionPaso0}
+            onSeleccionChange={setSeleccionPaso0}
+            showCostInfo
+          />
+        )}
+
+        {wizardCurrent === 1 && (
+          <>
+            <ProductoDetalleList<DetalleLine>
+              items={detallesValidos}
+              getImagen={detalleImagen}
+              getMarca={detalleMarca}
+              getProcedencia={detalleProcedencia}
+              getPrecio={(item) => item.costo}
+              getSubtotal={(item) => (item.cantidad || 0) * item.costo}
+              onRemove={removeDetalleRow}
+              renderExtra={(item) => (
+                <div className="flex flex-col gap-1 items-end">
+                  <InputNumber
+                    size="small"
+                    min={0}
+                    step={0.01}
+                    prefix="Bs."
+                    placeholder="Costo"
+                    className="w-[110px]"
+                    value={item.costo}
+                    onChange={(val) => updateDetalle(item.key, 'costo', val || 0)}
+                  />
+                  <InputNumber
+                    size="small"
+                    min={0}
+                    step={0.01}
+                    suffix="%"
+                    placeholder="Util. %"
+                    className="w-[90px]"
+                    value={item.utilidad_pct}
+                    onChange={(val) => updateDetalle(item.key, 'utilidad_pct', val || 0)}
+                  />
+                  <span className="text-xs text-gray-500">
+                    Pv: Bs. {((item.costo || 0) * (1 + Number(item.utilidad_pct || 0) / 100)).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            />
+            <ResumenTotales subtotal={totalCalculado} total={totalCalculado} />
+          </>
+        )}
+
+        {wizardCurrent === 2 && (
+          <Form form={form} layout="vertical">
+            <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
+              <DatePicker className="w-full" />
+            </Form.Item>
 
           <div className="flex flex-wrap gap-3">
             <Form.Item name="proveedor_id" label="Proveedor" rules={[{ required: true }]} className="flex-1 min-w-[180px] !mb-3">
@@ -555,72 +687,31 @@ export default function ComprasPage() {
             />
           </Form.Item>
 
-          <div className="flex justify-between items-center mb-2">
-            <strong>Detalles de compra</strong>
-            {!editingCompra && numComprobanteAuto && (
-              <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
-            )}
+          <div className="mt-2 mb-3">
+            <div className="text-sm font-medium mb-2">Detalle (sin editar)</div>
+            <ProductoDetalleList<DetalleLine>
+              items={detallesValidos}
+              getImagen={detalleImagen}
+              getMarca={detalleMarca}
+              getProcedencia={detalleProcedencia}
+              getPrecio={(item) => item.costo}
+              getSubtotal={(item) => (item.cantidad || 0) * item.costo}
+              readOnly
+            />
           </div>
 
-          {detalles.map((det, index) => (
-            <div key={det.key} className="flex flex-wrap gap-2 mb-2 items-start">
-              <div className="flex-1 min-w-[160px]">
-                <Form.Item label={index === 0 ? 'Producto' : ''} className="!mb-0">
-                  <Input.Search
-                    placeholder="Buscar producto"
-                    value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
-                    readOnly
-                    onSearch={() => openProductoModal(det.key)}
-                    enterButton={<SearchOutlined />}
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[80px] shrink-0">
-                <Form.Item label={index === 0 ? 'Cantidad' : ''} className="!mb-0">
-                  <InputNumber
-                    min={1}
-                    className="w-full"
-                    value={det.cantidad}
-                    onChange={(val) => updateDetalle(det.key, 'cantidad', val)}
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[110px] shrink-0">
-                <Form.Item label={index === 0 ? 'Costo' : ''} className="!mb-0">
-                  <InputNumber
-                    min={0}
-                    step={0.01}
-                    prefix="Bs."
-                    className="w-full"
-                    value={det.costo}
-                    onChange={(val) => updateDetalle(det.key, 'costo', val || 0)}
-                  />
-                </Form.Item>
-              </div>
-              {detalles.length > 1 && (
-                <div className={index === 0 ? 'pt-[22px]' : ''}>
-                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} size="small" />
-                </div>
-              )}
-            </div>
-          ))}
-
-          <Button type="dashed" onClick={addDetalleRow} className="w-full !mb-3" icon={<PlusOutlined />}>
-            Agregar producto
-          </Button>
-
-          <div className="text-right text-lg font-bold">
-            Total: Bs. {totalCalculado.toFixed(2)}
-          </div>
+          <ResumenTotales
+            subtotal={totalCalculado}
+            total={totalCalculado}
+            extra={
+              !editingCompra && numComprobanteAuto ? (
+                <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
+              ) : undefined
+            }
+          />
         </Form>
+        )}
       </Modal>
-
-      <ProductoSelectorModal
-        visible={productoModalVisible}
-        onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
-        onSelect={selectProducto}
-        showCostInfo
-      />
       {previewModal}
     </div>
   )

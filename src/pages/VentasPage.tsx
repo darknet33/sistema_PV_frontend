@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, Tag, Input, Switch, Grid, App } from 'antd'
+import { Table, Button, Modal, Form, InputNumber, DatePicker, Space, Popconfirm, Tag, Input, Switch, Grid, App, Steps } from 'antd'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, SearchOutlined, PrinterOutlined, CloseCircleOutlined, HistoryOutlined, EyeOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, PrinterOutlined, CloseCircleOutlined, HistoryOutlined, EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { Venta, VentaCreate } from '../types/venta'
@@ -21,9 +21,14 @@ import { calcularPrecioBase } from '../utils/pricing'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
-import ProductoSelectorModal from '../components/ProductoSelectorModal'
+import ProductoDetalleList from '../components/ProductoDetalleList'
+import ResumenTotales from '../components/ResumenTotales'
+import WizardProductoSelector, { type SeleccionProducto } from '../components/WizardProductoSelector'
 
 const { useBreakpoint } = Grid
+
+const IVA_RATE = 13
+const IT_RATE = 3
 
 interface DetalleLine {
   key: string
@@ -35,6 +40,7 @@ interface DetalleLine {
   precio: number
   costo: number
   utilidad: number
+  utilidad_pct: number
   stock_actual: number
   unidad_abreviatura: string
   precioBase: number
@@ -57,6 +63,7 @@ export default function VentasPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
 
   const [detalles, setDetalles] = useState<DetalleLine[]>([])
+  const [seleccionPaso0, setSeleccionPaso0] = useState<Record<number, SeleccionProducto>>({})
   const [numComprobanteAuto, setNumComprobanteAuto] = useState('')
   const [autoNum, setAutoNum] = useState(false)
 
@@ -66,8 +73,9 @@ export default function VentasPage() {
 
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#a0d911', '#2f54eb']
 
-  const [productoModalVisible, setProductoModalVisible] = useState(false)
-  const [selectedDetalleKey, setSelectedDetalleKey] = useState<string | null>(null)
+  const [wizardCurrent, setWizardCurrent] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [conFactura, setConFactura] = useState(false)
 
   const [notaModalVisible, setNotaModalVisible] = useState(false)
   const [notaVenta, setNotaVenta] = useState<Venta | null>(null)
@@ -203,15 +211,17 @@ export default function VentasPage() {
   const openCreateModal = async () => {
     await loadProductos()
     setEditingVenta(null)
-    setDetalles([{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, unidad_abreviatura: '', precioBase: 0 }])
+    setDetalles([])
+    setSeleccionPaso0({})
     setNumComprobanteAuto('')
     setAutoNum(true)
+    setWizardCurrent(0)
     form.resetFields()
     form.setFieldsValue({
       fecha: dayjs(),
-      impuesto: 0,
       descuento: 0,
     })
+    setConFactura(false)
     setModalVisible(true)
   }
 
@@ -225,15 +235,22 @@ export default function VentasPage() {
       comprobante_id: venta.comprobante_id,
       num_comprobante: venta.num_comprobante,
       estado_id: venta.estado_id,
-      impuesto: Number(venta.impuesto || 0),
       descuento: Number(venta.descuento || 0),
     })
+    setConFactura(Number(venta.impuesto || 0) > 0)
     setNumComprobanteAuto(venta.num_comprobante)
+    setSeleccionPaso0(
+      (venta.detalles || []).reduce<Record<number, SeleccionProducto>>((acc, d) => {
+        if (d.producto_id != null) acc[d.producto_id] = { cantidad: d.cantidad || 1 }
+        return acc
+      }, {})
+    )
     setDetalles(
       venta.detalles?.map((d, i) => {
         const p = productos.find(p2 => p2.id === d.producto_id)
         const costo = Number(p?.precio || 0)
         const utilidad = Number(d.utilidad || 0)
+        const utilidad_pct = costo > 0 ? Math.round((utilidad / costo) * 10000) / 100 : 0
         const precio = costo + utilidad
         return {
           key: String(i + 1),
@@ -245,16 +262,19 @@ export default function VentasPage() {
           precio,
           costo,
           utilidad,
+          utilidad_pct,
           stock_actual: p ? p.stock_actual : 0,
           unidad_abreviatura: p?.unidad_principal?.unidad_abreviatura || '',
           precioBase: calcularPrecioBase(costo, utilidad),
         }
-      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, precioBase: 0 }]
+      }) || [{ key: '1', producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, utilidad_pct: 0, stock_actual: 0, precioBase: 0 }]
     )
+    setWizardCurrent((venta.detalles?.length ?? 0) > 0 ? 1 : 0)
     setModalVisible(true)
   }
 
   const handleSave = async () => {
+    setSaving(true)
     try {
       const values = await form.validateFields()
       const validDetalles = detalles.filter((d) => d.producto_id != null)
@@ -268,8 +288,8 @@ export default function VentasPage() {
         cliente_id: values.cliente_id,
         comprobante_id: values.comprobante_id,
         estado_id: values.estado_id,
-        impuesto: values.impuesto || 0,
-        it: itPct,
+        impuesto: conFactura ? IVA_RATE : 0,
+        it: conFactura ? IT_RATE : 0,
         descuento: values.descuento || 0,
         num_comprobante: autoNum ? undefined : (values.num_comprobante || ''),
         automatico: autoNum,
@@ -297,6 +317,8 @@ export default function VentasPage() {
       loadVentas()
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Error al guardar')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -320,41 +342,89 @@ export default function VentasPage() {
     }
   }
 
-  const addDetalleRow = () => {
-    setDetalles((prev) => [...prev, { key: String(Date.now()), producto_id: null, producto_nombre: '', producto_codigo: '', producto_categoria: '', cantidad: 1, precio: 0, costo: 0, utilidad: 0, stock_actual: 0, unidad_abreviatura: '', precioBase: 0 }])
+  const commitSeleccionVenta = () => {
+    setDetalles((prev) => {
+      const prevByProducto = new Map(prev.filter((d) => d.producto_id != null).map((d) => [d.producto_id!, d]))
+      const ids = Object.keys(seleccionPaso0).map(Number)
+      return ids.map((pid) => {
+        const sel = seleccionPaso0[pid]
+        const existing = prevByProducto.get(pid)
+        if (existing) {
+          return { ...existing, cantidad: sel.cantidad }
+        }
+        const producto = productos.find((p) => p.id === pid)
+        if (!producto) return null
+        const costo = Number(producto.precio || 0)
+        const utilidad_pct = costo > 0 ? Math.round((Number(producto.utilidad || 0) / costo) * 10000) / 100 : 0
+        const utilidad = costo * utilidad_pct / 100
+        const precioBase = calcularPrecioBase(costo, utilidad)
+        return {
+          key: `${pid}-${Date.now()}-${Math.random()}`,
+          producto_id: pid,
+          producto_nombre: producto.descripcion,
+          producto_codigo: producto.codigo,
+          producto_categoria: catMap.get(producto.categoria_id) || '',
+          cantidad: sel.cantidad,
+          precio: precioBase,
+          costo,
+          utilidad,
+          utilidad_pct,
+          stock_actual: producto.stock_actual,
+          unidad_abreviatura: producto.unidad_principal?.unidad_abreviatura || '',
+          precioBase,
+        }
+      }).filter((d): d is NonNullable<typeof d> => d != null)
+    })
   }
 
   const removeDetalleRow = (key: string) => {
+    const line = detalles.find((d) => d.key === key)
     setDetalles((prev) => prev.filter((d) => d.key !== key))
-  }
-
-  const openProductoModal = (detKey: string) => {
-    setSelectedDetalleKey(detKey)
-    setProductoModalVisible(true)
-  }
-
-  const selectProducto = (producto: Producto) => {
-    if (selectedDetalleKey) {
-      const costo = Number(producto.precio || 0)
-      const utilidad = Number(producto.utilidad || 0)
-      const precioBase = calcularPrecioBase(costo, utilidad)
-      setDetalles((prev) => prev.map((d) =>
-        d.key === selectedDetalleKey
-          ? { ...d, producto_id: producto.id, producto_nombre: producto.descripcion, producto_codigo: producto.codigo, producto_categoria: catMap.get(producto.categoria_id) || '', precio: precioBase, costo, utilidad, stock_actual: producto.stock_actual, unidad_abreviatura: producto.unidad_principal?.unidad_abreviatura || '', precioBase }
-          : d
-      ))
+    if (line && line.producto_id != null) {
+      setSeleccionPaso0((prev) => {
+        const next = { ...prev }
+        delete next[line.producto_id!]
+        return next
+      })
     }
-    setProductoModalVisible(false)
-    setSelectedDetalleKey(null)
+  }
+
+  const detallesValidos = useMemo(() => detalles.filter((d) => d.producto_id != null), [detalles])
+  const wizardSteps = [{ title: 'Productos' }, { title: 'Precios' }, { title: 'Encabezado' }]
+
+  const detalleImagen = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.imagen || null
+  const detalleMarca = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.marca
+  const detalleProcedencia = (item: DetalleLine) => productos.find((p) => p.id === item.producto_id)?.procedencia
+
+  const goNext = () => {
+    if (wizardCurrent === 0) {
+      if (Object.keys(seleccionPaso0).length === 0) {
+        message.warning('Debe agregar al menos un producto')
+        return
+      }
+      commitSeleccionVenta()
+    }
+    setWizardCurrent((c) => Math.min(2, c + 1))
+  }
+
+  const goBack = () => setWizardCurrent((c) => Math.max(0, c - 1))
+
+  const handleCloseModal = () => {
+    setModalVisible(false)
+    setWizardCurrent(0)
+    setDetalles([])
+    setSeleccionPaso0({})
+    setNumComprobanteAuto('')
   }
 
   const updateDetalle = (key: string, field: keyof DetalleLine, value: any) => {
     setDetalles((prev) => prev.map((d) => {
       if (d.key !== key) return d
       const updated = { ...d, [field]: value }
-      if (field === 'utilidad') {
-        const u = Number(value || 0)
-        updated.precio = d.costo + u
+      if (field === 'utilidad_pct') {
+        const pct = Number(value || 0)
+        updated.utilidad = d.costo * pct / 100
+        updated.precio = d.costo + updated.utilidad
       }
       return updated
     }))
@@ -370,16 +440,14 @@ export default function VentasPage() {
     }
   }
 
-  const watchedImpuesto = Form.useWatch('impuesto', form)
   const watchedDescuento = Form.useWatch('descuento', form)
-  const impuestoPct = watchedImpuesto
+  const impuestoPct = conFactura ? IVA_RATE : 0
   const descuentoPct = watchedDescuento
 
-  const IT_VENTA_DIRECTA = 3
-  const itPct = Number(impuestoPct || 0) > 0 ? IT_VENTA_DIRECTA : 0
+  const itPct = conFactura ? IT_RATE : 0
 
   const precioFinalItem = (neto: number) =>
-    Number(impuestoPct || 0) > 0
+    conFactura
       ? Math.round((neto || 0) * 1.13 * 1.03 * 100) / 100
       : (neto || 0)
 
@@ -684,15 +752,91 @@ export default function VentasPage() {
       <Modal
         title={editingVenta ? 'Editar Venta' : 'Nueva Venta'}
         open={modalVisible}
-        onCancel={() => { setModalVisible(false); setDetalles([]); setNumComprobanteAuto('') }}
-        onOk={handleSave}
-        width={720}
+        onCancel={handleCloseModal}
+        width={820}
         className="responsive-modal"
+        footer={
+          <div className="flex justify-between gap-2">
+            <Button onClick={handleCloseModal}>Cancelar</Button>
+            <div className="flex gap-2">
+              {wizardCurrent > 0 && <Button onClick={goBack}>Anterior</Button>}
+              {wizardCurrent < 2 ? (
+                <Button type="primary" onClick={goNext} disabled={wizardCurrent === 0 && Object.keys(seleccionPaso0).length === 0}>
+                  Siguiente
+                </Button>
+              ) : (
+                <Button type="primary" loading={saving} onClick={handleSave}>
+                  Guardar
+                </Button>
+              )}
+            </div>
+          </div>
+        }
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
-            <DatePicker className="w-full" />
-          </Form.Item>
+        <Steps size="small" current={wizardCurrent} items={wizardSteps} className="mb-4" />
+
+        {wizardCurrent === 0 && (
+          <WizardProductoSelector
+            productos={productos}
+            categorias={categorias}
+            seleccion={seleccionPaso0}
+            onSeleccionChange={setSeleccionPaso0}
+            showCostInfo
+          />
+        )}
+
+        {wizardCurrent === 1 && (
+          <Form form={form} layout="vertical">
+            <div className="flex justify-end items-center mb-2 gap-2">
+              <span>Con factura</span>
+              <Switch checked={conFactura} onChange={setConFactura} />
+            </div>
+            <ProductoDetalleList<DetalleLine>
+              items={detallesValidos}
+              getImagen={detalleImagen}
+              getMarca={detalleMarca}
+              getProcedencia={detalleProcedencia}
+              getUnidad={(item) => item.unidad_abreviatura}
+              getPrecio={(item) => precioFinalItem(item.precio || 0)}
+              getSubtotal={(item) => (item.cantidad || 0) * precioFinalItem(item.precio || 0)}
+              onRemove={removeDetalleRow}
+              renderExtra={(item) => (
+                <div className="flex flex-col items-center gap-0.5">
+                  <InputNumber
+                    size="small"
+                    min={0}
+                    step={0.01}
+                    suffix="%"
+                    placeholder="Util. %"
+                    className="w-[90px]"
+                    value={item.utilidad_pct}
+                    onChange={(val) => updateDetalle(item.key, 'utilidad_pct', val || 0)}
+                  />
+                  {item.producto_id != null && (item.cantidad || 0) > item.stock_actual && (
+                    <div className="text-red-500 text-xs leading-[14px]">
+                      Stock: {item.stock_actual} {item.unidad_abreviatura}
+                    </div>
+                  )}
+                </div>
+              )}
+            />
+            <ResumenTotales
+              conFactura={conFactura}
+              subtotal={subtotalCalculado}
+              iva={ivaInfoCalculado}
+              it={itInfoCalculado}
+              descuentoPct={descuentoPct}
+              descuento={descuentoCalculado}
+              total={totalCalculado}
+            />
+          </Form>
+        )}
+
+        {wizardCurrent === 2 && (
+          <Form form={form} layout="vertical">
+            <Form.Item name="fecha" label="Fecha" rules={[{ required: true }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
+              <DatePicker className="w-full" />
+            </Form.Item>
 
           <div className="flex flex-wrap gap-3">
             <Form.Item name="cliente_id" label="Cliente" rules={[{ required: true }]} className="flex-1 min-w-[180px] !mb-3">
@@ -768,137 +912,42 @@ export default function VentasPage() {
           </Form.Item>
 
           <div className="flex flex-wrap gap-3">
-            <Form.Item name="impuesto" label="Impuesto %" className="flex-1 min-w-[120px]" initialValue={0}>
-              <InputNumber min={0} max={100} className="w-full" />
-            </Form.Item>
             <Form.Item name="descuento" label="Descuento %" className="flex-1 min-w-[120px]" initialValue={0}>
               <InputNumber min={0} max={100} className="w-full" />
             </Form.Item>
           </div>
 
-          <div className="flex justify-between items-center mb-2">
-            <strong>Detalles de venta</strong>
-            {!editingVenta && numComprobanteAuto && (
-              <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
-            )}
+          <div className="mt-2 mb-3">
+            <div className="text-sm font-medium mb-2">Detalle (sin editar)</div>
+            <ProductoDetalleList<DetalleLine>
+              items={detallesValidos}
+              getImagen={detalleImagen}
+              getMarca={detalleMarca}
+              getProcedencia={detalleProcedencia}
+              getUnidad={(item) => item.unidad_abreviatura}
+              getPrecio={(item) => precioFinalItem(item.precio || 0)}
+              getSubtotal={(item) => (item.cantidad || 0) * precioFinalItem(item.precio || 0)}
+              readOnly
+            />
           </div>
 
-          {detalles.map((det, index) => (
-            <div key={det.key} className="flex flex-wrap gap-2 mb-2 items-start">
-              <div className="flex-1 min-w-[140px]">
-                <Form.Item label={index === 0 ? 'Producto' : ''} className="!mb-0">
-                  <Input.Search
-                    placeholder="Buscar producto"
-                    value={det.producto_nombre ? `[${det.producto_codigo}] ${det.producto_categoria} - ${det.producto_nombre}` : ''}
-                    readOnly
-                    onSearch={() => openProductoModal(det.key)}
-                    enterButton={<SearchOutlined />}
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[65px] shrink-0">
-                <Form.Item label={index === 0 ? 'Cant.' : ''} className="!mb-0">
-                  <InputNumber
-                    min={1}
-                    className="w-full"
-                    value={det.cantidad}
-                    onChange={(val) => updateDetalle(det.key, 'cantidad', val)}
-                  />
-                  {det.producto_id && (det.cantidad || 0) > det.stock_actual && (
-                    <div className="text-red-500 text-xs leading-[14px] mt-0.5">
-                      Stock: {det.stock_actual} {det.unidad_abreviatura}
-                    </div>
-                  )}
-                </Form.Item>
-              </div>
-              <div className="w-[80px] shrink-0">
-                <Form.Item label={index === 0 ? 'Costo' : ''} className="!mb-0">
-                  <InputNumber
-                    className="w-full"
-                    value={det.costo}
-                    disabled
-                    variant="borderless"
-                    prefix="Bs."
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[80px] shrink-0">
-                <Form.Item label={index === 0 ? 'Util.' : ''} className="!mb-0">
-                  <InputNumber
-                    min={0}
-                    step={0.01}
-                    prefix="Bs."
-                    className="w-full"
-                    value={det.utilidad}
-                    onChange={(val) => updateDetalle(det.key, 'utilidad', val || 0)}
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[90px] shrink-0">
-                <Form.Item label={index === 0 ? 'P. Venta' : ''} className="!mb-0">
-                  <InputNumber
-                    className="w-full"
-                    value={precioFinalItem(det.precio || 0)}
-                    disabled
-                    variant="borderless"
-                    prefix="Bs."
-                  />
-                </Form.Item>
-              </div>
-              <div className="w-[80px] shrink-0">
-                <Form.Item label={index === 0 ? 'Subtotal' : ''} className="!mb-0">
-                  <InputNumber
-                    className="w-full"
-                    value={(det.cantidad || 0) * precioFinalItem(det.precio || 0)}
-                    disabled
-                    variant="borderless"
-                  />
-                </Form.Item>
-              </div>
-              {detalles.length > 1 && (
-                <div className={index === 0 ? 'pt-[22px]' : ''}>
-                  <Button danger icon={<DeleteOutlined />} onClick={() => removeDetalleRow(det.key)} size="small" />
-                </div>
-              )}
-            </div>
-          ))}
-
-          <Button type="dashed" onClick={addDetalleRow} className="w-full !mb-3" icon={<PlusOutlined />}>
-            Agregar producto
-          </Button>
-
-          <div className="text-right font-bold">
-            {Number(descuentoPct || 0) > 0 && (
-              <div className="text-[15px]">Subtotal: Bs. {subtotalCalculado.toFixed(2)}</div>
-            )}
-            {Number(impuestoPct || 0) > 0 && (
-              <div className="font-normal text-sm text-blue-500">
-                IVA ({impuestoPct}% inc.): Bs. {ivaInfoCalculado.toFixed(2)}
-              </div>
-            )}
-            {itPct > 0 && (
-              <div className="font-normal text-sm text-orange-500">
-                IT ({itPct}% inc.): Bs. {itInfoCalculado.toFixed(2)}
-              </div>
-            )}
-            {Number(descuentoPct || 0) > 0 && (
-              <div className="font-normal text-sm text-green-500">
-                Descuento ({descuentoPct}%): -Bs. {descuentoCalculado.toFixed(2)}
-              </div>
-            )}
-            <div className="text-lg mt-1">
-              Total: Bs. {totalCalculado.toFixed(2)}
-            </div>
-          </div>
+          <ResumenTotales
+            conFactura={conFactura}
+            subtotal={subtotalCalculado}
+            iva={ivaInfoCalculado}
+            it={itInfoCalculado}
+            descuentoPct={descuentoPct}
+            descuento={descuentoCalculado}
+            total={totalCalculado}
+            extra={
+              !editingVenta && numComprobanteAuto ? (
+                <Tag color="blue">N° Comprobante: {numComprobanteAuto}</Tag>
+              ) : undefined
+            }
+          />
         </Form>
+        )}
       </Modal>
-
-      <ProductoSelectorModal
-        visible={productoModalVisible}
-        onCancel={() => { setProductoModalVisible(false); setSelectedDetalleKey(null) }}
-        onSelect={selectProducto}
-        showCostInfo
-      />
 
       <Modal
         title={notaVenta ? `Nota de Entrega - Venta #${notaVenta.id}` : 'Nota de Entrega'}
