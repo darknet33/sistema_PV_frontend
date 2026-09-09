@@ -3,10 +3,14 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { ConfigProvider, App as AntApp } from 'antd'
 import esES from 'antd/locale/es_ES'
+import dayjs from 'dayjs'
+import 'dayjs/locale/es'
 import App from './App'
 import { useEmpresaStore, useEmpresaColors } from './stores/empresaStore'
 import { syncFavicon } from './utils/favicon'
 import './index.css'
+
+dayjs.locale('es')
 
 function FaviconSync() {
   const empresa = useEmpresaStore((state) => state.empresa)
