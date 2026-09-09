@@ -12,12 +12,14 @@ import type { NotaEntrega } from '../types/notaEntrega'
 import { getClientes, createCliente, updateCliente, deleteCliente } from '../services/clienteService'
 import comprobanteService from '../services/comprobanteService'
 import { getProductos } from '../services/productoService'
+import { useAuthStore } from '../stores/authStore'
 import estadoService from '../services/estadoService'
 import categoriaService from '../services/categoriaService'
 import type { Cliente } from '../types/cliente'
 import type { Producto } from '../types/producto'
 import type { Categoria } from '../types/categoria'
 import { calcularPrecioBase } from '../utils/pricing'
+import { capitalizeWords } from '../utils/format'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
@@ -48,6 +50,7 @@ interface DetalleLine {
 export default function VentasPage() {
   const { message } = App.useApp()
   const screens = useBreakpoint()
+  const currentUser = useAuthStore((s) => s.usuario)
   const isMobile = !screens.md
   const [ventas, setVentas] = useState<Venta[]>([])
   const [loading, setLoading] = useState(false)
@@ -512,8 +515,10 @@ export default function VentasPage() {
         cantidad: d.cantidad,
       }))
     )
+    const nombreUsuario = currentUser ? `${currentUser.nombres} ${currentUser.apellidos}`.trim() : ''
     notaForm.setFieldsValue({
-      entregue_nombre: venta.usuario_nombre_completo || venta.usuario_username || '',
+      fecha: dayjs(),
+      entregue_nombre: nombreUsuario,
       entregue_carnet: '',
       recibi_nombre: venta.cliente_nombre || '',
       recibi_carnet: '',
@@ -545,9 +550,10 @@ export default function VentasPage() {
       setNotaGenerando(true)
       const nota = await createNotaEntrega({
         venta_id: notaVenta.id,
-        entregue_nombre: values.entregue_nombre,
+        fecha: (values.fecha || dayjs()).toISOString(),
+        entregue_nombre: capitalizeWords(values.entregue_nombre),
         entregue_carnet: values.entregue_carnet,
-        recibi_nombre: values.recibi_nombre,
+        recibi_nombre: capitalizeWords(values.recibi_nombre),
         recibi_carnet: values.recibi_carnet,
         detalles: validDetalles.map((d) => ({ producto_id: d.producto_id, cantidad: (d.cantidad || 0) })),
       })
@@ -892,10 +898,10 @@ export default function VentasPage() {
                   update: updateCliente,
                   remove: deleteCliente,
                   fields: [
-                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nombre', label: 'Nombre', normalize: 'capitalize' },
                     { name: 'nit', label: 'NIT' },
                     { name: 'celular', label: 'Celular' },
-                    { name: 'direccion', label: 'Dirección' },
+                    { name: 'direccion', label: 'Dirección', normalize: 'capitalize' },
                   ],
                   onDataChange: (list) => setClientes(list),
                 }}
@@ -914,7 +920,7 @@ export default function VentasPage() {
                   update: comprobanteService.update,
                   remove: comprobanteService.delete,
                   fields: [
-                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nombre', label: 'Nombre', normalize: 'capitalize' },
                     { name: 'numero', label: 'Número', type: 'number' },
                   ],
                   onDataChange: (list) => setComprobantes(list),
@@ -946,7 +952,7 @@ export default function VentasPage() {
                 create: estadoService.create,
                 update: estadoService.update,
                 remove: estadoService.delete,
-                fields: [{ name: 'nombre', label: 'Nombre' }],
+                fields: [{ name: 'nombre', label: 'Nombre', normalize: 'capitalize' }],
                 onDataChange: (list) => setEstados(list),
               }}
             />
@@ -1004,9 +1010,12 @@ export default function VentasPage() {
           Total de cantidades a entregar: {notaTotalCantidades}
         </div>
         <Form form={notaForm} layout="vertical">
+          <Form.Item name="fecha" label="Fecha de entrega" rules={[{ required: true, message: 'Seleccione la fecha' }]} getValueProps={(value) => ({ value: value ? dayjs(value) : undefined })}>
+            <DatePicker className="w-full" format="DD/MM/YYYY" />
+          </Form.Item>
           <div className="flex flex-wrap gap-3">
             <Form.Item name="entregue_nombre" label="Entrega (nombre)" rules={[{ required: true, message: 'Ingrese el nombre' }]} className="flex-1 min-w-[180px]">
-              <Input placeholder="Nombre de quien entrega" />
+              <Input placeholder="Nombre de quien entrega" onChange={(e) => notaForm.setFieldValue('entregue_nombre', capitalizeWords(e.target.value))} />
             </Form.Item>
             <Form.Item name="entregue_carnet" label="Entrega (carnet)" rules={[{ required: true, message: 'Ingrese el carnet' }]} className="flex-1 min-w-[150px]">
               <Input placeholder="Carnet de quien entrega" />
@@ -1014,7 +1023,7 @@ export default function VentasPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Form.Item name="recibi_nombre" label="Recibe (nombre)" rules={[{ required: true, message: 'Ingrese el nombre' }]} className="flex-1 min-w-[180px]">
-              <Input placeholder="Nombre de quien recibe" />
+              <Input placeholder="Nombre de quien recibe" onChange={(e) => notaForm.setFieldValue('recibi_nombre', capitalizeWords(e.target.value))} />
             </Form.Item>
             <Form.Item name="recibi_carnet" label="Recibe (carnet)" rules={[{ required: true, message: 'Ingrese el carnet' }]} className="flex-1 min-w-[150px]">
               <Input placeholder="Carnet de quien recibe" />

@@ -14,6 +14,7 @@ export interface NotaEntregaDetalleResponse {
 
 export interface NotaEntregaCreate {
   venta_id: number
+  fecha?: string
   entregue_nombre: string
   entregue_carnet: string
   recibi_nombre: string

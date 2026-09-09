@@ -33,9 +33,9 @@ export default function UsuariosPage() {
       required: !editingRecord,
       rules: editingRecord ? [] : [{ required: true, message: 'Password requerido' }],
     },
-    { name: 'nombres', label: 'Nombres', required: true },
-    { name: 'apellidos', label: 'Apellidos', required: true },
-    { name: 'cargo', label: 'Cargo', required: true },
+    { name: 'nombres', label: 'Nombres', required: true, normalize: 'capitalize' },
+    { name: 'apellidos', label: 'Apellidos', required: true, normalize: 'capitalize' },
+    { name: 'cargo', label: 'Cargo', required: true, normalize: 'capitalize' },
     {
       name: 'rol_id',
       label: 'Rol',
@@ -51,7 +51,7 @@ export default function UsuariosPage() {
             update: rolService.update,
             remove: rolService.delete,
             fields: [
-              { name: 'nombre', label: 'Nombre' },
+              { name: 'nombre', label: 'Nombre', normalize: 'capitalize' },
             ],
             onDataChange: (list) => setRoles(list),
           }}

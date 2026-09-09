@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
+import { capitalizeWords } from '../utils/format'
 import type { Cotizacion, CotizacionCreate } from '../types/cotizacion'
 import {
   getCotizaciones, createCotizacion, updateCotizacion, deleteCotizacion, confirmarCotizacion,
@@ -659,7 +660,7 @@ export default function CotizacionesPage() {
     update: comprobanteService.update as any,
     remove: comprobanteService.delete as any,
     fields: [
-      { name: 'nombre', label: 'Nombre' },
+      { name: 'nombre', label: 'Nombre', normalize: 'capitalize' as const },
       { name: 'numero', label: 'Número', type: 'number' as const },
     ],
     onDataChange: (list: any[]) => setComprobantes(list),
@@ -672,7 +673,7 @@ export default function CotizacionesPage() {
     create: estadoService.create as any,
     update: estadoService.update as any,
     remove: estadoService.delete as any,
-    fields: [{ name: 'nombre', label: 'Nombre' }],
+    fields: [{ name: 'nombre', label: 'Nombre', normalize: 'capitalize' as const }],
     onDataChange: (list: any[]) => setEstados(list),
   }
 
@@ -898,10 +899,10 @@ export default function CotizacionesPage() {
                   update: updateCliente,
                   remove: deleteCliente,
                   fields: [
-                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nombre', label: 'Nombre', normalize: 'capitalize' },
                     { name: 'nit', label: 'NIT' },
                     { name: 'celular', label: 'Celular' },
-                    { name: 'direccion', label: 'Dirección' },
+                    { name: 'direccion', label: 'Dirección', normalize: 'capitalize' },
                   ],
                   onDataChange: (list) => setClientes(list),
                 }}
@@ -919,7 +920,11 @@ export default function CotizacionesPage() {
             )}
 
           <Form.Item name="modalidad_pago" label="Modalidad de pago">
-            <Input placeholder="Ej. 50% adelanto, 50% contra entrega" />
+            <Input
+              placeholder="Ej. 50% adelanto, 50% contra entrega"
+              value={form.getFieldValue('modalidad_pago') ?? ''}
+              onChange={(e) => form.setFieldValue('modalidad_pago', capitalizeWords(e.target.value))}
+            />
           </Form.Item>
           <Form.Item name="forma_pago" label="Forma de pago" className="flex-1 min-w-[200px]">
               <Select
@@ -929,7 +934,12 @@ export default function CotizacionesPage() {
               />
             </Form.Item>
           <Form.Item name="terminos_condiciones" label="Términos y condiciones">
-            <Input.TextArea rows={3} placeholder="Términos y condiciones de la oferta" />
+            <Input.TextArea
+              rows={3}
+              placeholder="Términos y condiciones de la oferta"
+              value={form.getFieldValue('terminos_condiciones') ?? ''}
+              onChange={(e) => form.setFieldValue('terminos_condiciones', capitalizeWords(e.target.value))}
+            />
           </Form.Item>
 
           <div className="mt-2 mb-3">

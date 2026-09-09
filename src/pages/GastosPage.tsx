@@ -47,7 +47,7 @@ import {
 import estadoService from '../services/estadoService'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import usePdfPreview from '../hooks/usePdfPreview'
-import { formatCurrency } from '../utils/format'
+import { formatCurrency, capitalizeWords } from '../utils/format'
 import ResponsiveTable from '../components/ResponsiveTable'
 import PageHeader from '../components/PageHeader'
 import SubCrudSelect from '../components/SubCrudSelect'
@@ -578,7 +578,7 @@ export default function GastosPage() {
                 create: createCategoriaGasto,
                 update: updateCategoriaGasto,
                 remove: deleteCategoriaGasto,
-                fields: [{ name: 'nombre', label: 'Nombre de la Categoría', required: true }],
+                fields: [{ name: 'nombre', label: 'Nombre de la Categoría', required: true, normalize: 'capitalize' }],
                 onDataChange: (list) => setCategorias(list),
               }}
             />
@@ -624,7 +624,7 @@ export default function GastosPage() {
                   create: estadoService.create,
                   update: estadoService.update,
                   remove: estadoService.delete,
-                  fields: [{ name: 'nombre', label: 'Nombre', required: true }],
+                  fields: [{ name: 'nombre', label: 'Nombre', required: true, normalize: 'capitalize' }],
                   onDataChange: (list) => setEstados(list),
                 }}
               />
@@ -637,6 +637,8 @@ export default function GastosPage() {
               placeholder="Detalle o motivo del gasto (opcional)"
               maxLength={255}
               showCount
+              value={form.getFieldValue('descripcion') ?? ''}
+              onChange={(e) => form.setFieldValue('descripcion', capitalizeWords(e.target.value))}
             />
           </Form.Item>
         </Form>

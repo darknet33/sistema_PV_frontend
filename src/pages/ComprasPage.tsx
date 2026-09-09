@@ -640,10 +640,10 @@ export default function ComprasPage() {
                   update: updateProveedor,
                   remove: deleteProveedor,
                   fields: [
-                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nombre', label: 'Nombre', normalize: 'uppercase' },
                     { name: 'nit', label: 'NIT' },
-                    { name: 'materiales', label: 'Materiales' },
-                    { name: 'contacto', label: 'Contacto' },
+                    { name: 'materiales', label: 'Materiales', normalize: 'capitalize' },
+                    { name: 'contacto', label: 'Contacto', normalize: 'capitalize' },
                     { name: 'celular_contacto', label: 'Celular' },
                     { name: 'email_contacto', label: 'Email' },
                   ],
@@ -664,7 +664,7 @@ export default function ComprasPage() {
                   update: comprobanteService.update,
                   remove: comprobanteService.delete,
                   fields: [
-                    { name: 'nombre', label: 'Nombre' },
+                    { name: 'nombre', label: 'Nombre', normalize: 'capitalize' },
                     { name: 'numero', label: 'Número', type: 'number' },
                   ],
                   onDataChange: (list) => setComprobantes(list),
@@ -696,7 +696,7 @@ export default function ComprasPage() {
                 create: estadoService.create,
                 update: estadoService.update,
                 remove: estadoService.delete,
-                fields: [{ name: 'nombre', label: 'Nombre' }],
+                fields: [{ name: 'nombre', label: 'Nombre', normalize: 'capitalize' }],
                 onDataChange: (list) => setEstados(list),
               }}
             />

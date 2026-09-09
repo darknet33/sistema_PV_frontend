@@ -1,5 +1,6 @@
 import { Modal, Form, Input, InputNumber, Switch, Select } from 'antd'
-import type { ReactNode } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
+import { applyNormalize, type TextNormalize } from '../utils/format'
 
 export interface CrudField {
   name: string
@@ -12,6 +13,7 @@ export interface CrudField {
   min?: number
   max?: number
   step?: number
+  normalize?: TextNormalize
   props?: Record<string, unknown>
   render?: (form: ReturnType<typeof Form.useForm>[0]) => ReactNode
 }
@@ -26,6 +28,17 @@ interface CrudModalProps {
   loading?: boolean
   editing?: boolean
   width?: number
+}
+
+function normalizedTextProps(field: CrudField, form: ReturnType<typeof Form.useForm>[0]) {
+  const placeholder = field.placeholder ?? field.label
+  if (!field.normalize) return { placeholder }
+  return {
+    placeholder,
+    value: (form.getFieldValue(field.name) as string | undefined) ?? '',
+    onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      form.setFieldValue(field.name, applyNormalize(e.target.value, field.normalize as TextNormalize)),
+  }
 }
 
 export default function CrudModal({
@@ -126,7 +139,7 @@ export default function CrudModal({
                   >
                     <Input.TextArea
                       rows={3}
-                      placeholder={field.placeholder ?? field.label}
+                      {...normalizedTextProps(field, form)}
                       {...field.props}
                     />
                   </Form.Item>
@@ -139,7 +152,7 @@ export default function CrudModal({
                   label={field.label}
                   rules={baseRules}
                 >
-                  <Input placeholder={field.placeholder ?? field.label} {...field.props} />
+                  <Input {...normalizedTextProps(field, form)} {...field.props} />
                 </Form.Item>
               )
           }

@@ -3,6 +3,8 @@ import { App, Modal, Table, Button, Form, Input, InputNumber, Switch, Select, Po
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { CrudField } from './CrudModal'
+import { applyNormalize, type TextNormalize } from '../utils/format'
+import type { ChangeEvent } from 'react'
 
 export interface SubCrudModalProps {
   title: string
@@ -19,7 +21,18 @@ export interface SubCrudModalProps {
   onDataChange?: (data: any[]) => void
 }
 
-function renderField(field: CrudField) {
+function normalizedTextProps(field: CrudField, form: ReturnType<typeof Form.useForm>[0]) {
+  const placeholder = field.placeholder ?? field.label
+  if (!field.normalize) return { placeholder }
+  return {
+    placeholder,
+    value: (form.getFieldValue(field.name) as string | undefined) ?? '',
+    onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      form.setFieldValue(field.name, applyNormalize(e.target.value, field.normalize as TextNormalize)),
+  }
+}
+
+function renderField(field: CrudField, form: ReturnType<typeof Form.useForm>[0]) {
   const rules = field.required
     ? [...(field.rules ?? []), { required: true, message: `${field.label} es requerido` }]
     : field.rules
@@ -64,13 +77,13 @@ function renderField(field: CrudField) {
     case 'textarea':
       return (
         <Form.Item key={field.name} name={field.name} label={field.label} rules={rules}>
-          <Input.TextArea rows={3} placeholder={field.placeholder ?? field.label} {...field.props} />
+          <Input.TextArea rows={3} {...normalizedTextProps(field, form)} {...field.props} />
         </Form.Item>
       )
     default:
       return (
         <Form.Item key={field.name} name={field.name} label={field.label} rules={rules}>
-          <Input placeholder={field.placeholder ?? field.label} {...field.props} />
+          <Input {...normalizedTextProps(field, form)} {...field.props} />
         </Form.Item>
       )
   }
@@ -210,7 +223,7 @@ export default function SubCrudModal({
           className="responsive-modal"
         >
           <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-            {defaultFields.map((f) => renderField(f))}
+            {defaultFields.map((f) => renderField(f, form))}
           </Form>
         </Modal>
       )}

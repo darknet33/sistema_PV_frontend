@@ -8,3 +8,25 @@ export function formatDate(f: string | null | undefined, fmt = 'DD/MM/YYYY'): st
   if (!f) return '-'
   return dayjs(f).format(fmt)
 }
+
+export type TextNormalize = 'capitalize' | 'uppercase' | 'lowercase'
+
+export function capitalizeWords(value: string): string {
+  return value.replace(/\S+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1))
+}
+
+export function upperText(value: string): string {
+  return value.toUpperCase()
+}
+
+export function applyNormalize(value: string, mode: TextNormalize): string {
+  if (!value) return value
+  switch (mode) {
+    case 'uppercase':
+      return upperText(value)
+    case 'lowercase':
+      return value.toLowerCase()
+    default:
+      return capitalizeWords(value)
+  }
+}

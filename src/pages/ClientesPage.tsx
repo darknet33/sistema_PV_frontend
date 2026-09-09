@@ -10,10 +10,10 @@ import type { Cliente } from '../types/cliente'
 import { getClientes, createCliente, updateCliente, deleteCliente, toggleClienteActivo } from '../services/clienteService'
 
 const fields: CrudField[] = [
-  { name: 'nombre', label: 'Nombre', required: true },
+  { name: 'nombre', label: 'Nombre', required: true, normalize: 'capitalize' },
   { name: 'nit', label: 'NIT', required: true },
   { name: 'celular', label: 'Celular', required: true },
-  { name: 'direccion', label: 'Dirección', type: 'textarea', required: true },
+  { name: 'direccion', label: 'Dirección', type: 'textarea', required: true, normalize: 'capitalize' },
 ]
 
 export default function ClientesPage() {

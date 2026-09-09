@@ -19,6 +19,20 @@ export interface UsuarioCreate {
   password: string
 }
 
+export interface UsuarioUpdate {
+  username?: string
+  nombres?: string
+  apellidos?: string
+  cargo?: string
+  rol_id?: number
+  password?: string
+}
+
+export interface PasswordChange {
+  current_password: string
+  new_password: string
+}
+
 export interface Rol {
   id: number
   nombre: string

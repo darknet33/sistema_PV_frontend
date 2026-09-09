@@ -8,10 +8,12 @@ import {
   ArrowLeftOutlined,
   LoginOutlined,
   UserAddOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
 import { resolveUrl } from '../utils/resolveUrl'
+import { capitalizeWords } from '../utils/format'
 import { checkUsers } from '../services/authService'
 import type { LoginRequest, SetupAdminRequest } from '../types/auth'
 
@@ -31,6 +33,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const screens = useBreakpoint()
   const isMobile = !screens.md
+  const [setupForm] = Form.useForm()
 
   useEffect(() => {
     loadEmpresa()
@@ -39,7 +42,7 @@ export default function LoginPage() {
         const response = await checkUsers()
         setNeedsSetup(response.needs_setup)
       } catch (error: any) {
-        message.error(error.response?.data?.detail || 'No se pudo verificar la configuracion inicial')
+        message.error(error.response?.data?.detail || 'No se pudo verificar la configuración inicial')
       } finally {
         setCheckingSetup(false)
       }
@@ -64,7 +67,7 @@ export default function LoginPage() {
           duration: 4,
         })
       } else {
-        message.error(error.response?.data?.detail || 'Error al iniciar sesion')
+        message.error(error.response?.data?.detail || 'Error al iniciar sesión')
       }
     } finally {
       setLoading(false)
@@ -89,124 +92,184 @@ export default function LoginPage() {
       <div
         style={{
           display: 'flex',
+          flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
+          gap: 16,
           minHeight: '100vh',
           background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+          color: '#fff',
         }}
       >
-        <Spin size="large" />
+        <Spin size="large" style={{ color: '#fff' }} />
+        <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>Cargando...</Text>
       </div>
     )
   }
 
+  const inputCls = 'login-dark-input'
+  const buttonBg = { background: primary, borderColor: primary }
+
   return (
     <div
       style={{
+        position: 'relative',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
+        padding: isMobile ? '84px 16px 40px' : '56px 24px',
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-        position: 'relative',
-        overflow: 'hidden',
-        padding: isMobile ? '72px 16px 32px' : '40px 24px',
+        overflowX: 'hidden',
       }}
     >
       <style>{`
-        .login-dark-input input::placeholder,
-        .login-dark-input .ant-input-prefix { color: rgba(255,255,255,0.45) !important; }
-        .login-dark-input input { color: #fff; }
-        .login-dark-input .ant-input-suffix { color: rgba(255,255,255,0.45) !important; }
-        .login-dark-input .ant-input-password-icon { color: rgba(255,255,255,0.45) !important; }
+        .login-dark-input,
+        .login-dark-input.ant-input,
+        .login-dark-input.ant-input-affix-wrapper {
+          background: rgba(255,255,255,0.07) !important;
+          border: 1px solid rgba(255,255,255,0.14) !important;
+          border-radius: 10px !important;
+          box-shadow: none !important;
+        }
+        .login-dark-input:hover {
+          border-color: rgba(255,255,255,0.3) !important;
+        }
+        .login-dark-input.ant-input-affix-wrapper-focused,
+        .login-dark-input:focus,
+        .login-dark-input.ant-input:focus {
+          border-color: ${primary} !important;
+          box-shadow: 0 0 0 3px ${primary}40 !important;
+        }
+        .login-dark-input,
+        .login-dark-input input {
+          color: #fff !important;
+          caret-color: #fff !important;
+          background: transparent !important;
+        }
+        .login-dark-input::placeholder,
+        .login-dark-input input::placeholder {
+          color: rgba(255,255,255,0.42) !important;
+        }
+        .login-dark-input .ant-input-prefix {
+          color: rgba(255,255,255,0.45) !important;
+          margin-inline-end: 10px;
+        }
+        .login-dark-input .ant-input-suffix,
+        .login-dark-input .ant-input-password-icon {
+          color: rgba(255,255,255,0.45) !important;
+        }
+        .login-dark-input input:-webkit-autofill,
+        .login-dark-input input:-webkit-autofill:hover,
+        .login-dark-input input:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0 1000px ${'#1e2947'} inset !important;
+          box-shadow: 0 0 0 1000px ${'#1e2947'} inset !important;
+          -webkit-text-fill-color: #fff !important;
+          caret-color: #fff !important;
+          transition: background-color 999999s ease-out 0s;
+        }
+        .login-dark-input input::selection {
+          background: ${primary}66;
+          color: #fff;
+        }
+        .login-back-btn {
+          color: rgba(255,255,255,0.7);
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.05);
+          backdrop-filter: blur(4px);
+          transition: all .2s ease;
+        }
+        .login-back-btn:hover {
+          color: #fff !important;
+          border-color: rgba(255,255,255,0.3) !important;
+          background: rgba(255,255,255,0.12) !important;
+        }
+        .login-card {
+          background: rgba(255,255,255,0.055) !important;
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+        }
+        .login-brand-mark {
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.1);
+        }
       `}</style>
 
-      {/* Decorative background circles */}
+      {/* Fondo decorativo (capa propia para no recortar el scroll) */}
       <div
+        aria-hidden
         style={{
           position: 'absolute',
-          width: isMobile ? 220 : 400,
-          height: isMobile ? 220 : 400,
-          borderRadius: '50%',
-          background: `${primary}18`,
-          top: isMobile ? -70 : -120,
-          right: isMobile ? -60 : -100,
+          inset: 0,
+          overflow: 'hidden',
           pointerEvents: 'none',
         }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          width: isMobile ? 180 : 300,
-          height: isMobile ? 180 : 300,
-          borderRadius: '50%',
-          background: `${primary}10`,
-          bottom: isMobile ? -50 : -80,
-          left: isMobile ? -60 : -80,
-          pointerEvents: 'none',
-        }}
-      />
+      >
+        <div
+          style={{
+            position: 'absolute',
+            width: isMobile ? 240 : 420,
+            height: isMobile ? 240 : 420,
+            borderRadius: '50%',
+            background: `${primary}1f`,
+            top: isMobile ? -70 : -130,
+            right: isMobile ? -70 : -110,
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            width: isMobile ? 200 : 320,
+            height: isMobile ? 200 : 320,
+            borderRadius: '50%',
+            background: `${primary}14`,
+            bottom: isMobile ? -60 : -90,
+            left: isMobile ? -60 : -90,
+          }}
+        />
+      </div>
 
-      {/* Back button */}
+      {/* Botón volver */}
       <Button
         type="text"
         icon={<ArrowLeftOutlined />}
         onClick={() => navigate('/')}
+        className="login-back-btn"
         style={{
           position: 'absolute',
           top: isMobile ? 16 : 24,
           left: isMobile ? 16 : 24,
-          color: 'rgba(255,255,255,0.7)',
+          zIndex: 2,
           fontSize: 15,
           height: isMobile ? 36 : 40,
           padding: isMobile ? '0 12px' : '0 16px',
-          borderRadius: 8,
+          borderRadius: 10,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          border: '1px solid rgba(255,255,255,0.12)',
-          background: 'rgba(255,255,255,0.05)',
-          backdropFilter: 'blur(4px)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = '#fff'
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
-          e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'
-          e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
         }}
       >
         Volver
       </Button>
 
       <Card
+        className="login-card"
         style={{
           width: '100%',
           maxWidth: 420,
-          borderRadius: 16,
-          border: '1px solid rgba(255,255,255,0.1)',
-          background: 'rgba(255,255,255,0.05)',
-          backdropFilter: 'blur(12px)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          borderRadius: 20,
+          border: '1px solid rgba(255,255,255,0.12)',
+          position: 'relative',
+          zIndex: 1,
         }}
         styles={{
-          body: { padding: isMobile ? '32px 20px 24px' : '40px 36px 32px' },
+          body: { padding: isMobile ? '32px 22px 26px' : '40px 38px 34px' },
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
           {empresa?.logo ? (
-            <div
-              style={{
-                display: 'inline-flex',
-                padding: '12px 20px',
-                background: 'rgba(255,255,255,0.08)',
-                borderRadius: 14,
-                marginBottom: 16,
-              }}
-            >
+            <div className="login-brand-mark" style={{ display: 'inline-flex', padding: '12px 22px', borderRadius: 14, marginBottom: 18 }}>
               <img
                 src={resolveUrl(empresa.logo)}
                 alt="Logo"
@@ -216,17 +279,22 @@ export default function LoginPage() {
           ) : (
             <div
               style={{
-                width: 64,
-                height: 64,
-                borderRadius: 16,
-                background: primary,
+                width: 66,
+                height: 66,
+                borderRadius: 18,
+                background: `linear-gradient(135deg, ${primary}, ${primary}cc)`,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 16,
+                marginBottom: 18,
+                boxShadow: `0 10px 26px ${primary}40`,
               }}
             >
-              <LockOutlined style={{ fontSize: 28, color: '#fff' }} />
+              {needsSetup ? (
+                <SafetyCertificateOutlined style={{ fontSize: 28, color: '#fff' }} />
+              ) : (
+                <LockOutlined style={{ fontSize: 28, color: '#fff' }} />
+              )}
             </div>
           )}
           <h2
@@ -234,13 +302,14 @@ export default function LoginPage() {
               color: '#fff',
               fontSize: 22,
               fontWeight: 700,
-              marginBottom: 4,
+              letterSpacing: '-0.01em',
+              marginBottom: 6,
               marginTop: 0,
             }}
           >
-            {needsSetup ? 'Configuración Inicial' : 'Bienvenido'}
+            {needsSetup ? 'Configuración inicial' : 'Bienvenido'}
           </h2>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 0 }}>
+          <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 14, marginBottom: 0, lineHeight: 1.5 }}>
             {needsSetup
               ? 'Crea el usuario administrador para comenzar'
               : empresa?.razon_social?.toUpperCase() || 'Ingresa tus credenciales para acceder'}
@@ -253,52 +322,34 @@ export default function LoginPage() {
               type="info"
               showIcon
               style={{
-                marginBottom: 20,
-                borderRadius: 10,
-                background: 'rgba(22,119,255,0.1)',
-                border: '1px solid rgba(22,119,255,0.25)',
+                marginBottom: 22,
+                borderRadius: 12,
+                background: 'rgba(22,119,255,0.12)',
+                border: '1px solid rgba(22,119,255,0.3)',
               }}
               message={
-                <span style={{ color: 'rgba(255,255,255,0.85)' }}>
+                <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>
                   No hay usuarios registrados. Crea el administrador inicial.
                 </span>
               }
             />
-            <Form name="setup-admin" layout="vertical" onFinish={onSetupFinish} requiredMark={false}>
+            <Form name="setup-admin" form={setupForm} layout="vertical" onFinish={onSetupFinish} requiredMark={false}>
               <div style={{ display: 'flex', gap: 12, flexDirection: isMobile ? 'column' : 'row' }}>
                 <Form.Item
                   name="nombres"
                   rules={[{ required: true, message: 'Ingrese sus nombres' }]}
+                  normalize={(v) => capitalizeWords(String(v || ''))}
                   style={{ flex: 1, marginBottom: 16 }}
                 >
-                  <Input
-                    placeholder="Nombres"
-                    size="large"
-                    className="login-dark-input"
-                    style={{
-                      background: 'rgba(255,255,255,0.06)',
-                      borderColor: 'rgba(255,255,255,0.12)',
-                      color:'rgba(255,255,255,1)',
-                      borderRadius: 10,
-                    }}
-                  />
+                  <Input placeholder="Nombres" size="large" className={inputCls} autoComplete="given-name" />
                 </Form.Item>
                 <Form.Item
                   name="apellidos"
                   rules={[{ required: true, message: 'Ingrese sus apellidos' }]}
+                  normalize={(v) => capitalizeWords(String(v || ''))}
                   style={{ flex: 1, marginBottom: 16 }}
                 >
-                  <Input
-                    placeholder="Apellidos"
-                    size="large"
-                    className="login-dark-input"
-                    style={{
-                      background: 'rgba(255,255,255,0.06)',
-                      borderColor: 'rgba(255,255,255,0.12)',
-                      color:'rgba(255,255,255,1)',
-                      borderRadius: 10,
-                    }}
-                  />
+                  <Input placeholder="Apellidos" size="large" className={inputCls} autoComplete="family-name" />
                 </Form.Item>
               </div>
               <Form.Item
@@ -307,37 +358,27 @@ export default function LoginPage() {
                 style={{ marginBottom: 16 }}
               >
                 <Input
-                  prefix={<UserOutlined style={{ color: 'rgba(255,255,255,0.45)' }} />}
+                  prefix={<UserOutlined />}
                   placeholder="Usuario administrador"
                   size="large"
-                  className="login-dark-input"
-                  style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    borderColor: 'rgba(255,255,255,0.12)',
-                    color:'rgba(255,255,255,1)',
-                    borderRadius: 10,
-                  }}
+                  className={inputCls}
+                  autoComplete="username"
                 />
               </Form.Item>
               <Form.Item
                 name="password"
                 rules={[
-                  { required: true, message: 'Ingrese una contrasena' },
+                  { required: true, message: 'Ingrese una contraseña' },
                   { min: 6, message: 'Use al menos 6 caracteres' },
                 ]}
                 style={{ marginBottom: 24 }}
               >
                 <Input.Password
-                  prefix={<LockOutlined style={{ color: 'rgba(255,255,255,0.45)' }} />}
-                  placeholder="Contrasena"
+                  prefix={<LockOutlined />}
+                  placeholder="Contraseña"
                   size="large"
-                  className="login-dark-input"
-                  style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    borderColor: 'rgba(255,255,255,0.12)',
-                    color:'rgba(255,255,255,1)',
-                    borderRadius: 10,
-                  }}
+                  className={inputCls}
+                  autoComplete="new-password"
                 />
               </Form.Item>
               <Form.Item style={{ marginBottom: 0 }}>
@@ -350,11 +391,11 @@ export default function LoginPage() {
                   icon={<UserAddOutlined />}
                   style={{
                     height: 48,
-                    borderRadius: 10,
+                    borderRadius: 12,
                     fontWeight: 600,
                     fontSize: 15,
-                    background: primary,
-                    borderColor: primary,
+                    ...buttonBg,
+                    boxShadow: `0 10px 24px ${primary}3d`,
                   }}
                 >
                   Crear administrador
@@ -366,32 +407,20 @@ export default function LoginPage() {
           <Form name="login" onFinish={onFinish} requiredMark={false}>
             <Form.Item name="username" rules={[{ required: true, message: 'Ingrese su usuario' }]} style={{ marginBottom: 16 }}>
               <Input
-                prefix={<UserOutlined style={{ color: 'rgba(255,255,255,0.45)' }} />}
+                prefix={<UserOutlined />}
                 placeholder="Usuario"
                 size="large"
                 autoComplete="username"
-                className="login-dark-input"
-                style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  borderColor: 'rgba(255,255,255,0.12)',
-                  color:'rgba(255,255,255,1)',
-                  borderRadius: 10,
-                }}
+                className={inputCls}
               />
             </Form.Item>
-            <Form.Item name="password" rules={[{ required: true, message: 'Ingrese su contrasena' }]} style={{ marginBottom: 24 }}>
+            <Form.Item name="password" rules={[{ required: true, message: 'Ingrese su contraseña' }]} style={{ marginBottom: 24 }}>
               <Input.Password
-                prefix={<LockOutlined style={{ color: 'rgba(255,255,255,0.45)' }} />}
-                placeholder="Contrasena"
+                prefix={<LockOutlined />}
+                placeholder="Contraseña"
                 size="large"
                 autoComplete="current-password"
-                className="login-dark-input"
-                style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  borderColor: 'rgba(255,255,255,0.12)',
-                  color:'rgba(255,255,255,1)',
-                  borderRadius: 10,
-                }}
+                className={inputCls}
               />
             </Form.Item>
             <Form.Item style={{ marginBottom: 0 }}>
@@ -404,22 +433,21 @@ export default function LoginPage() {
                 icon={<LoginOutlined />}
                 style={{
                   height: 48,
-                  borderRadius: 10,
+                  borderRadius: 12,
                   fontWeight: 600,
                   fontSize: 15,
-                  background: primary,
-                  borderColor: primary,
+                  ...buttonBg,
+                  boxShadow: `0 10px 24px ${primary}3d`,
                 }}
               >
-                Iniciar sesion
+                Iniciar sesión
               </Button>
             </Form.Item>
           </Form>
         )}
 
         <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>Rembix Copyright © 2026
-          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>Rembix Copyright © 2026</Text>
         </div>
       </Card>
     </div>

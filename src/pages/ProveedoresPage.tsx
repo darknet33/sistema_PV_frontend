@@ -10,10 +10,10 @@ import type { Proveedor } from '../types/proveedor'
 import { getProveedores, createProveedor, updateProveedor, deleteProveedor, toggleProveedorActivo } from '../services/proveedorService'
 
 const fields: CrudField[] = [
-  { name: 'nombre', label: 'Nombre', required: true },
+  { name: 'nombre', label: 'Nombre', required: true, normalize: 'uppercase' },
   { name: 'nit', label: 'NIT', required: true },
-  { name: 'materiales', label: 'Materiales', required: true },
-  { name: 'contacto', label: 'Contacto', required: true },
+  { name: 'materiales', label: 'Materiales', required: true, normalize: 'capitalize' },
+  { name: 'contacto', label: 'Contacto', required: true, normalize: 'capitalize' },
   { name: 'celular_contacto', label: 'Celular', required: true },
   { name: 'email_contacto', label: 'Email', required: true },
 ]

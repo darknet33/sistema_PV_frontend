@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-**Sistema Rhino** v3.0 — Frontend SPA para sistema de inventario POS. React + TypeScript + Ant Design.
+**Sistema_Inventario** v3.0 — Frontend SPA para sistema de inventario POS. React + TypeScript + Ant Design.
+
+> Nota: omitir e ignorar `wrangler.jsonc` (no tocar, no modificar, no considerar en builds). Rama de trabajo: `yct`.
 
 ### Stack
 - React 18, TypeScript, Vite 5

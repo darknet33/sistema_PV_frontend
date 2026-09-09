@@ -1,5 +1,5 @@
 import api from './api'
-import type { Usuario, UsuarioCreate } from '../types/configuracion'
+import type { Usuario, UsuarioCreate, UsuarioUpdate, PasswordChange } from '../types/configuracion'
 
 const usuarioService = {
   getAll: async () => {
@@ -14,8 +14,12 @@ const usuarioService = {
     const { data } = await api.post<Usuario>('/usuarios/', usuario)
     return data
   },
-  update: async (id: number, usuario: UsuarioCreate) => {
+  update: async (id: number, usuario: UsuarioUpdate) => {
     const { data } = await api.put<Usuario>(`/usuarios/${id}`, usuario)
+    return data
+  },
+  changePassword: async (id: number, payload: PasswordChange) => {
+    const { data } = await api.put(`/usuarios/${id}/password`, payload)
     return data
   },
   delete: async (id: number) => {
