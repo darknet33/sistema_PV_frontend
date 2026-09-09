@@ -11,6 +11,8 @@ import type { MenuProps } from 'antd'
 import { useAuthStore } from '../stores/authStore'
 import { useEmpresaStore, useEmpresaColors } from '../stores/empresaStore'
 import { resolveUrl } from '../utils/resolveUrl'
+import PWAInstallPrompt from './PWAInstallPrompt'
+import PWAUpdateBanner from './PWAUpdateBanner'
 
 const { Header, Sider, Content } = Layout
 const { useBreakpoint } = Grid
@@ -138,6 +140,8 @@ export default function AppLayout({ menuItems, children }: AppLayoutProps) {
           </Dropdown>
         </Header>
         <Content className="bg-white overflow-auto p-4 md:p-6 max-md:!p-3 max-sm:!p-2">
+          <PWAInstallPrompt />
+          <PWAUpdateBanner />
           {children}
         </Content>
       </Layout>

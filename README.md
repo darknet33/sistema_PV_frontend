@@ -1,4 +1,4 @@
-# Sistema Rhino v3.0 — Frontend
+# Sistema de Inventario v3.0 — Frontend
 
 SPA para sistema de inventario POS.
 
