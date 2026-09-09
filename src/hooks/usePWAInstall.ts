@@ -10,20 +10,16 @@ export function usePWAInstall() {
   const [isInstallable, setIsInstallable] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
-  const [isAndroid, setIsAndroid] = useState(false)
 
   useEffect(() => {
     const userAgent = window.navigator.userAgent.toLowerCase()
     const iosDevice = /iphone|ipad|ipod/.test(userAgent)
-    const androidDevice = /android/.test(userAgent)
     setIsIOS(iosDevice)
-    setIsAndroid(androidDevice)
 
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true
     setIsInstalled(isStandalone)
 
-    // If already installed, don't show install prompt
     if (isStandalone) return
 
     const handler = (e: Event) => {
@@ -33,19 +29,6 @@ export function usePWAInstall() {
     }
 
     window.addEventListener('beforeinstallprompt', handler)
-
-    // Fallback for Android Chrome - show install instructions even without the event
-    if (androidDevice && !isStandalone) {
-      // Give some time for the event to fire
-      const timer = setTimeout(() => {
-        setIsInstallable(true)
-      }, 3000)
-
-      return () => {
-        window.removeEventListener('beforeinstallprompt', handler)
-        clearTimeout(timer)
-      }
-    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
@@ -79,7 +62,6 @@ export function usePWAInstall() {
     isInstallable,
     isInstalled,
     isIOS,
-    isAndroid,
     install,
     dismiss
   }
